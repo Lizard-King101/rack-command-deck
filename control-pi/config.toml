@@ -1,0 +1,67 @@
+[server]
+port       = 8765
+bind       = "0.0.0.0"
+cache_file = "hosts.json"   # persists known hosts; edit to add MAC addresses for WOL
+
+[display]
+brightness    = 80
+screensaver_s = 0        # 0 = never dim
+fb_device     = "/dev/fb0"
+touch_device  = "/dev/input/event0"
+width         = 800
+height        = 480
+
+[pdu]
+enabled  = true
+host     = "192.168.1.5"
+port     = 80
+username = "admin"
+password = "changeme"
+poll_ms  = 5000
+
+[power]
+database_path = "power.db"
+raw_retention_hours = 24
+rollup_retention_days = 30
+currency = "USD"
+cost_per_kwh = 0.15
+warning_watts = 600
+critical_watts = 750
+critical_hold_s = 30
+load_shedding_enabled = false
+startup_readiness_s = 10
+
+# Dependencies define group startup order. Shutdown uses the reverse order.
+#[[power_group]]
+#name = "core"
+#members = ["storage", "services"]
+#dependencies = []
+#shedding_priority = 0
+#never_shed = true
+#startup_timeout_s = 120
+#shutdown_timeout_s = 120
+
+#[[power_group]]
+#name = "compute"
+#members = ["compute-01"]
+#dependencies = ["core"]
+#shedding_priority = 100
+#never_shed = false
+
+[[services]]
+name   = "nginx"
+target = ""     # "" = shown for all hosts
+
+[[services]]
+name   = "ssh"
+target = ""
+
+[[scripts]]
+name    = "Update Packages"
+command = "apt-get update -y && apt-get upgrade -y"
+target  = ""
+
+[[scripts]]
+name    = "Flush DNS Cache"
+command = "systemd-resolve --flush-caches"
+target  = ""

@@ -1,0 +1,16 @@
+[Unit]
+Description=Command Deck Metrics Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/deck-agent /etc/command-deck/agent.toml
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,30 @@
+# Build output
+**/build/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+CTestTestfile.cmake
+Testing/
+
+# Runtime state
+control-pi/hosts.json
+*.db
+*.db-shm
+*.db-wal
+*.log
+
+# Emulator and generated media
+*.ppm
+*.png
+*.jpg
+*.jpeg
+
+# Editor and OS files
+.cache/
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store

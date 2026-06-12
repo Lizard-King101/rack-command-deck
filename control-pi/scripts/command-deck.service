@@ -1,0 +1,22 @@
+[Unit]
+Description=Command Deck Dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+# Give access to framebuffer and input devices
+SupplementaryGroups=video input
+Environment=HOME=/home/pi
+WorkingDirectory=/home/pi
+ExecStart=/usr/local/bin/command-deck /etc/command-deck/config.toml
+Restart=always
+RestartSec=3
+# Prevent runaway restarts
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

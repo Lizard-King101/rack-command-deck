@@ -1,0 +1,38 @@
+[connection]
+control_host    = "127.0.0.1"
+control_port    = 8765
+reconnect_ms    = 5000
+
+[metrics]
+interval_ms     = 2000
+cpu             = true
+memory          = true
+disk            = true
+network         = true
+temperature     = true
+uptime          = true
+# Only interfaces matching this prefix are reported (empty = all non-loopback)
+net_prefix      = ""
+# Mount points to report (empty = all physical mounts)
+disk_mounts     = []
+
+[controls]
+allow_reboot     = true
+allow_shutdown   = false
+allow_gpio       = false
+allowed_services = ["nginx", "docker", "sshd", "mosquitto"]
+
+[pdu]
+outlet = 0    # PDU outlet this machine is on (1–8); 0 = unassigned
+
+# Services this machine exposes for start/stop/restart control
+[[services]]
+name = "nginx"
+
+#[[services]]
+#name = "docker"
+
+# One-shot scripts the deck can trigger on this machine
+#[[scripts]]
+#name    = "Update Packages"
+#command = "apt-get update -y && apt-get upgrade -y"
