@@ -10,7 +10,7 @@ static WsClient* g_client = nullptr;
 
 static lws_protocols protocols[] = {
     { "deck-protocol", WsClient::lws_callback, 0, 65536, 0, nullptr, 0 },
-    LWS_PROTOCOL_LIST_TERM
+    {}
 };
 
 WsClient::WsClient(const AgentConfig::Connection& cfg,

@@ -25,7 +25,7 @@ static lws_protocols protocols[] = {
         65536,
         0, nullptr, 0
     },
-    LWS_PROTOCOL_LIST_TERM
+    {}
 };
 
 WsServer::WsServer(MetricsStore& store, ActivityStore& activity, uint16_t port)
