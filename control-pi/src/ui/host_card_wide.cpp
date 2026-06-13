@@ -23,7 +23,7 @@ enum WIdx {
     WIDX_RAM_LBL,
     WIDX_BAR_RAM,
     WIDX_RAM_VAL,
-    WIDX_BOTTOM,   // single label: temp | uptime | wattage
+    WIDX_BOTTOM,   // single label: load | uptime | PDU state
     WIDX_COUNT
 };
 
@@ -235,13 +235,13 @@ void HostCardWide::populate(lv_obj_t* card, const HostEntry& e,
     lv_label_set_text(l_ram_val, buf);
     lv_obj_set_style_opa(l_ram_val, dim, 0);
 
-    // Bottom row: load, uptime, optional wattage
+    // Bottom row: load, uptime, optional PDU state
     lv_obj_t* l_bottom = lv_obj_get_child(card, WIDX_BOTTOM);
     if (e.online) {
         if (pdu_enabled && outlet) {
-            snprintf(buf, sizeof(buf), "load %.2f  up %.0fh  |  PDU #%d %.1fW %s",
+            snprintf(buf, sizeof(buf), "load %.2f  up %.0fh  |  PDU #%d %s",
                      m.uptime.load1, m.uptime.uptime_s / 3600.0,
-                     outlet->outlet, outlet->watts, outlet->on ? "ON" : "OFF");
+                     outlet->outlet, outlet->on ? "ON" : "OFF");
         } else {
             snprintf(buf, sizeof(buf), "load %.2f  up %.0fh",
                      m.uptime.load1, m.uptime.uptime_s / 3600.0);

@@ -35,8 +35,9 @@ static void add_kv(lv_obj_t* parent, const char* key, const char* val) {
     lv_label_set_text(lv, val);
 }
 
-ScreenSettings::ScreenSettings(lv_obj_t* parent, const Config& cfg, ActivityStore& activity)
-    : cfg_(cfg), activity_(activity) {
+ScreenSettings::ScreenSettings(lv_obj_t* parent, const Config& cfg, ActivityStore& activity,
+                               UpdateManager& updater)
+    : cfg_(cfg), activity_(activity), updater_(updater) {
     container_ = lv_obj_create(parent);
     lv_obj_set_size(container_, 800, 390);
     lv_obj_set_pos(container_, 0, 0);
@@ -110,6 +111,36 @@ ScreenSettings::ScreenSettings(lv_obj_t* parent, const Config& cfg, ActivityStor
     snprintf(buf, sizeof(buf), "%zu", cfg_.power_groups.size());
     add_kv(power, "Power Groups", buf);
 
+    lv_obj_t* update_panel = make_panel();
+    make_section(update_panel, "DASHBOARD UPDATE");
+    add_kv(update_panel, "Repository", cfg_.update.repo_path.empty() ? "not configured" :
+           cfg_.update.repo_path.c_str());
+
+    btn_update_ = lv_button_create(update_panel);
+    lv_obj_add_style(btn_update_, &styles::btn_action, 0);
+    lv_obj_add_style(btn_update_, &styles::btn_action_pressed, LV_STATE_PRESSED);
+    styles::make_static(btn_update_);
+    lv_obj_t* update_btn_label = lv_label_create(btn_update_);
+    lv_label_set_text(update_btn_label, "PULL, BUILD, AND RESTART");
+    lv_obj_center(update_btn_label);
+    lv_obj_add_event_cb(btn_update_, +[](lv_event_t* event) {
+        static_cast<ScreenSettings*>(lv_event_get_user_data(event))->updater_.start();
+    }, LV_EVENT_CLICKED, this);
+    if (!updater_.available()) lv_obj_add_state(btn_update_, LV_STATE_DISABLED);
+
+    bar_update_ = lv_bar_create(update_panel);
+    lv_obj_set_size(bar_update_, LV_PCT(100), 8);
+    lv_bar_set_range(bar_update_, 0, 100);
+    lv_obj_add_style(bar_update_, &styles::bar_track, LV_PART_MAIN);
+    lv_obj_add_style(bar_update_, &styles::bar_cpu_ind, LV_PART_INDICATOR);
+    lv_bar_set_value(bar_update_, 0, LV_ANIM_OFF);
+
+    lbl_update_ = lv_label_create(update_panel);
+    lv_obj_add_style(lbl_update_, &styles::label_secondary, 0);
+    lv_obj_set_width(lbl_update_, LV_PCT(100));
+    lv_label_set_text(lbl_update_, updater_.available() ? "Ready to update" :
+                      "Updater is disabled or not configured");
+
     lv_obj_t* automation = make_panel();
     make_section(automation, "AUTOMATION");
     lv_obj_t* hint = lv_label_create(automation);
@@ -139,6 +170,18 @@ void ScreenSettings::refresh(const std::map<std::string, HostEntry>& hosts) {
         char buf[64];
         snprintf(buf, sizeof(buf), "Agents: %d online / %zu known", online, hosts.size());
         lv_label_set_text(lbl_agents_, buf);
+    }
+    if (bar_update_ && lbl_update_ && btn_update_) {
+        auto update = updater_.status();
+        lv_bar_set_value(bar_update_, update.progress, LV_ANIM_ON);
+        lv_label_set_text(lbl_update_, update.message.c_str());
+        lv_obj_set_style_text_color(lbl_update_,
+            update.state == UpdateState::Failed ? styles::DANGER :
+            update.state == UpdateState::Succeeded ? styles::OK : styles::TEXT_DIM, 0);
+        if (update.state == UpdateState::Running || !updater_.available())
+            lv_obj_add_state(btn_update_, LV_STATE_DISABLED);
+        else
+            lv_obj_remove_state(btn_update_, LV_STATE_DISABLED);
     }
     if (!lbl_activity_) return;
     auto recent = activity_.snapshot(8);

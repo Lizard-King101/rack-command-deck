@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+progress() {
+    printf 'PROGRESS %s %s\n' "$1" "$2"
+}
+
+fail() {
+    printf 'ERROR %s\n' "$1"
+    exit 1
+}
+
+trap 'fail "Update failed near line $LINENO"' ERR
+
+[[ $EUID -eq 0 ]] || fail "Updater must run through sudo"
+[[ $# -eq 1 ]] || fail "Updater requires exactly one repository path"
+[[ -n ${SUDO_USER:-} && $SUDO_USER != root ]] || fail "Could not determine service user"
+
+repo=$(realpath -e "$1") || fail "Repository path does not exist"
+[[ $(stat -c '%U' "$repo") == "$SUDO_USER" ]] || fail "Repository must be owned by $SUDO_USER"
+[[ $(runuser -u "$SUDO_USER" -- git -C "$repo" rev-parse --show-toplevel) == "$repo" ]] ||
+    fail "Configured path is not the repository root"
+
+run_as_user() {
+    runuser -u "$SUDO_USER" -- "$@"
+}
+
+progress 5 "Checking repository"
+run_as_user git -C "$repo" diff --quiet || fail "Repository has uncommitted changes"
+run_as_user git -C "$repo" diff --cached --quiet || fail "Repository has staged changes"
+[[ -z $(run_as_user git -C "$repo" status --porcelain --untracked-files=normal) ]] ||
+    fail "Repository has untracked files"
+run_as_user git -C "$repo" remote get-url origin >/dev/null ||
+    fail "Repository has no origin remote"
+
+progress 15 "Downloading latest code"
+run_as_user git -C "$repo" pull --ff-only
+
+progress 35 "Configuring release build"
+run_as_user cmake -S "$repo/control-pi" -B "$repo/control-pi/build-pi" \
+    -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+
+progress 45 "Building dashboard"
+run_as_user cmake --build "$repo/control-pi/build-pi" -j2
+
+progress 90 "Installing dashboard"
+install -o root -g root -m 0755 "$repo/control-pi/build-pi/command-deck" \
+    /usr/local/bin/command-deck
+
+progress 100 "Update installed; restarting dashboard"
+unit="command-deck-restart-$(date +%s)"
+systemd-run --quiet --unit="$unit" --on-active=3s \
+    /bin/systemctl restart command-deck.service

@@ -32,7 +32,7 @@ struct RingBuffer {
 
 // ── Power management state ────────────────────────────────────────────────────
 
-enum class PowerState { Normal, ShutdownPending, WaitingWatts, OutletOff };
+enum class PowerState { Normal, ShutdownPending, WaitingOutlet, OutletOff };
 
 // ── Host entry ────────────────────────────────────────────────────────────────
 

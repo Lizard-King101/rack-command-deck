@@ -18,9 +18,10 @@ static const char* TAB_LABELS[AppShell::TAB_COUNT] = {
 AppShell::AppShell(MetricsStore& store, PduStore& pdu, ActivityStore& activity,
                    CommandRouter& router, PowerHistoryStore& power_history,
                    PowerSequenceEngine& sequences, PowerBudgetController& budgets,
-                   const Config& cfg)
+                   UpdateManager& updater, const Config& cfg)
     : store_(store), pdu_(pdu), activity_(activity), router_(router),
-      power_history_(power_history), sequences_(sequences), budgets_(budgets), cfg_(cfg) {
+      power_history_(power_history), sequences_(sequences), budgets_(budgets),
+      updater_(updater), cfg_(cfg) {
     g_shell = this;
 }
 
@@ -298,7 +299,8 @@ void AppShell::show_tab(Tab t) {
         break;
     case TAB_SETTINGS:
         if (!screen_settings_)
-            screen_settings_ = std::make_unique<ScreenSettings>(content_area_, cfg_, activity_);
+            screen_settings_ = std::make_unique<ScreenSettings>(
+                content_area_, cfg_, activity_, updater_);
         screen_settings_->show();
         break;
     default: break;
@@ -312,7 +314,7 @@ void AppShell::show_host_detail(const std::string& host) {
     if (!screen_detail_)
         screen_detail_ = std::make_unique<ScreenHostDetail>(
             content_area_, store_, pdu_, router_,
-            activity_, power_history_,
+            activity_,
             [this] { pop_host_detail(); });
 
     if (screen_overview_) screen_overview_->hide();
@@ -356,6 +358,8 @@ void AppShell::refresh() {
     switch (active_tab_) {
     case TAB_OVERVIEW:
         if (screen_overview_) screen_overview_->refresh(hosts, outlets, cfg_.pdu.enabled,
+                                                        pdu_.measurements_available(),
+                                                        pdu_.total_watts(),
                                                         budgets_.warning(), budgets_.critical());
         break;
     case TAB_HOSTS:
@@ -373,14 +377,15 @@ void AppShell::refresh() {
 
 void AppShell::update_activity_toast() {
     if (!activity_toast_ || !lbl_activity_toast_) return;
-    auto recent = activity_.snapshot(20);
-    auto it = std::find_if(recent.begin(), recent.end(), [&](const CommandActivity& a) {
-        return a.state != ActivityState::Pending && a.id != last_toast_id_;
+    auto recent = activity_.snapshot();
+    auto it = std::max_element(recent.begin(), recent.end(), [](const CommandActivity& a,
+                                                               const CommandActivity& b) {
+        return a.completed_at < b.completed_at;
     });
-    if (it != recent.end()) {
+    if (it != recent.end() && it->completed_at > 0 && it->id != last_toast_id_) {
         const auto& a = *it;
         last_toast_id_ = a.id;
-        toast_ticks_ = 3;
+        toast_ticks_ = 5;
         std::string text = a.state == ActivityState::Succeeded ? "OK  " : "FAILED  ";
         if (!a.host.empty()) text += a.host + "  ";
         text += a.action;

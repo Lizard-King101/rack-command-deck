@@ -8,6 +8,7 @@
 #include "power/power_history_store.h"
 #include "power/power_sequence_engine.h"
 #include "power/power_budget_controller.h"
+#include "update_manager.h"
 #include <memory>
 #include <string>
 
@@ -22,7 +23,7 @@ public:
     AppShell(MetricsStore& store, PduStore& pdu, ActivityStore& activity,
              CommandRouter& router, PowerHistoryStore& power_history,
              PowerSequenceEngine& sequences, PowerBudgetController& budgets,
-             const Config& cfg);
+             UpdateManager& updater, const Config& cfg);
     ~AppShell();
 
     void build();
@@ -62,6 +63,7 @@ private:
     PowerHistoryStore& power_history_;
     PowerSequenceEngine& sequences_;
     PowerBudgetController& budgets_;
+    UpdateManager& updater_;
     const Config&   cfg_;
 
     lv_obj_t* root_screen_  = nullptr;

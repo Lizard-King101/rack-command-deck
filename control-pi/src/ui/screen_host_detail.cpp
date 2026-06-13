@@ -54,10 +54,8 @@ static lv_obj_t* make_btn(lv_obj_t* parent,
 ScreenHostDetail::ScreenHostDetail(lv_obj_t* parent, MetricsStore& store,
                                    PduStore& pdu, CommandRouter& router,
                                    ActivityStore& activity,
-                                   PowerHistoryStore& power_history,
                                    BackCb on_back)
     : store_(store), pdu_(pdu), router_(router), activity_(activity),
-      power_history_(power_history),
       on_back_(std::move(on_back)) {
     container_ = lv_obj_create(parent);
     lv_obj_set_size(container_, 800, 390);
@@ -393,13 +391,7 @@ void ScreenHostDetail::build_power_section(lv_obj_t* cont, const HostEntry& e) {
     lbl_power_summary_ = lv_label_create(panel);
     lv_obj_add_style(lbl_power_summary_, &styles::label_secondary, 0);
     lv_obj_set_width(lbl_power_summary_, LV_PCT(100));
-    auto outlet = pdu_.get_outlet(e.effective_pdu_outlet());
-    auto analytics = power_history_.analytics(e.effective_pdu_outlet(), outlet ? outlet->watts : 0.f);
-    char summary[128];
-    snprintf(summary, sizeof(summary), "Power: now %.1fW  avg %.1fW  peak %.1fW  est %.2fkWh/day",
-             analytics.current_watts, analytics.average_watts, analytics.peak_watts,
-             analytics.daily_kwh);
-    lv_label_set_text(lbl_power_summary_, summary);
+    lv_label_set_text(lbl_power_summary_, "Power metering is available at rack level only.");
 
     (void)ctrl_row;
 }
@@ -787,8 +779,8 @@ void ScreenHostDetail::update_controls(const HostEntry& e) {
         auto outlet = pdu_.get_outlet(e.effective_pdu_outlet());
         if (outlet) {
             char buf[64];
-            snprintf(buf, sizeof(buf), "PDU #%d  %.1fW  %s",
-                     outlet->outlet, outlet->watts, outlet->on ? "ON" : "OFF");
+            snprintf(buf, sizeof(buf), "PDU #%d  %s",
+                     outlet->outlet, outlet->on ? "ON" : "OFF");
             lv_label_set_text(lbl_outlet_, buf);
         }
     }
@@ -980,9 +972,9 @@ void ScreenHostDetail::poll_graceful_shutdown() {
     if (shutdown_state_ == PowerState::ShutdownPending) {
         bool still_online = entry && entry->online;
         if (!still_online) {
-            shutdown_state_ = PowerState::WaitingWatts;
+            shutdown_state_ = PowerState::WaitingOutlet;
             if (lbl_shutdown_status_)
-                lv_label_set_text(lbl_shutdown_status_, "Offline -- waiting for wattage < 5W...");
+                lv_label_set_text(lbl_shutdown_status_, "Offline -- disabling assigned outlet...");
         } else if (elapsed > 120) {
             if (lbl_shutdown_status_)
                 lv_label_set_text(lbl_shutdown_status_, "WARN: shutdown timeout -- host still online");
@@ -991,10 +983,10 @@ void ScreenHostDetail::poll_graceful_shutdown() {
         return;
     }
 
-    if (shutdown_state_ == PowerState::WaitingWatts) {
+    if (shutdown_state_ == PowerState::WaitingOutlet) {
         if (entry && entry->effective_pdu_outlet() > 0) {
             auto outlet = pdu_.get_outlet(entry->effective_pdu_outlet());
-            if (outlet && outlet->watts < 5.0f) {
+            if (outlet) {
                 shutdown_state_ = PowerState::OutletOff;
                 protocol::CommandMessage cmd;
                 cmd.id = current_host_ + "_outlet_off";
@@ -1019,7 +1011,7 @@ void ScreenHostDetail::poll_graceful_shutdown() {
         }
         if (elapsed > 300) {
             if (lbl_shutdown_status_)
-                lv_label_set_text(lbl_shutdown_status_, "WARN: watts not dropping -- check PDU");
+                lv_label_set_text(lbl_shutdown_status_, "WARN: unable to disable assigned outlet");
             reset_shutdown_state();
         }
     }

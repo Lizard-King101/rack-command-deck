@@ -18,7 +18,8 @@ public:
 
     void refresh(const std::map<std::string, HostEntry>& hosts,
                  const std::vector<protocol::OutletState>& outlets,
-                 bool pdu_enabled, bool power_warning = false,
+                 bool pdu_enabled, bool rack_power_available, float rack_watts,
+                 bool power_warning = false,
                  bool power_critical = false);
 
 private:

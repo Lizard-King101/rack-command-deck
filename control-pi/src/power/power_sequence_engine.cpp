@@ -5,10 +5,9 @@
 #include <set>
 
 PowerSequenceEngine::PowerSequenceEngine(const Config& cfg, MetricsStore& metrics, PduStore& pdu,
-                                         CommandRouter& router, ActivityStore& activity,
-                                         PowerHistoryStore& history)
+                                         CommandRouter& router, ActivityStore& activity)
     : power_cfg_(cfg.power), groups_(cfg.power_groups), metrics_(metrics), pdu_(pdu),
-      router_(router), activity_(activity), history_(history) {
+      router_(router), activity_(activity) {
     std::set<std::string> names;
     for (const auto& group : groups_) {
         if (group.name.empty() || !names.insert(group.name).second) {
@@ -197,8 +196,8 @@ void PowerSequenceEngine::tick() {
             if (outlet_num > 0 && !pdu_.healthy()) return fail_current("PDU disconnected");
             if (outlet_num > 0 && !outlet) return fail_current("outlet state unavailable");
             if (outlet && !outlet->on) {
-                auto predicted = history_.analytics(outlet_num, outlet->watts).typical_startup_watts;
-                if (pdu_.total_watts() + predicted > power_cfg_.critical_watts)
+                if (pdu_.measurements_available() &&
+                    pdu_.total_watts() >= power_cfg_.critical_watts)
                     return fail_current("blocked by critical rack budget");
                 protocol::CommandMessage cmd;
                 cmd.action = "outlet";
@@ -226,17 +225,15 @@ void PowerSequenceEngine::tick() {
         if (!pdu_.healthy()) return fail_current("PDU disconnected");
         outlet = pdu_.get_outlet(outlet_num);
         if (!outlet) return fail_current("outlet state unavailable");
-        if (outlet && outlet->watts < 5.f) {
-            if (outlet->on) {
-                protocol::CommandMessage cmd;
-                cmd.action = "outlet";
-                cmd.outlet_state = false;
-                router_.dispatch(cmd, step.host, outlet_num);
-                phase_ = 3;
-                return;
-            }
-            succeed_current("host offline and outlet disabled");
+        if (outlet->on) {
+            protocol::CommandMessage cmd;
+            cmd.action = "outlet";
+            cmd.outlet_state = false;
+            router_.dispatch(cmd, step.host, outlet_num);
+            phase_ = 3;
+            return;
         }
+        succeed_current("host offline and outlet disabled");
     }
     if (phase_ == 3) {
         if (!pdu_.healthy()) return fail_current("PDU disconnected");

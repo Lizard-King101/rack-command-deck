@@ -221,9 +221,10 @@ void ScreenOverview::build_host_list(lv_obj_t* parent) {
 
 void ScreenOverview::refresh(const std::map<std::string, HostEntry>& hosts,
                              const std::vector<protocol::OutletState>& outlets,
-                             bool pdu_enabled, bool power_warning, bool power_critical) {
+                             bool pdu_enabled, bool rack_power_available, float rack_watts,
+                             bool power_warning, bool power_critical) {
     int online = 0;
-    float cpu = 0, ram = 0, watts = 0;
+    float cpu = 0, ram = 0;
     for (const auto& [name, e] : hosts) {
         (void)name;
         if (!e.online) continue;
@@ -232,8 +233,6 @@ void ScreenOverview::refresh(const std::map<std::string, HostEntry>& hosts,
         ram += e.metrics.memory.pct;
     }
     if (online) { cpu /= online; ram /= online; }
-    for (const auto& outlet : outlets) watts += outlet.watts;
-
     char buf[64];
     snprintf(buf, sizeof(buf), "%d / %zu", online, hosts.size());
     lv_label_set_text(lbl_online_count_, buf);
@@ -243,7 +242,7 @@ void ScreenOverview::refresh(const std::map<std::string, HostEntry>& hosts,
     lv_label_set_text(lbl_avg_cpu_, buf);
     snprintf(buf, sizeof(buf), "%.0f%%", ram);
     lv_label_set_text(lbl_avg_ram_, buf);
-    if (pdu_enabled) snprintf(buf, sizeof(buf), "%.0f W", watts);
+    if (pdu_enabled && rack_power_available) snprintf(buf, sizeof(buf), "~%.0f W", rack_watts);
     else snprintf(buf, sizeof(buf), "--");
     lv_label_set_text(lbl_watts_, buf);
 
@@ -338,7 +337,8 @@ void ScreenOverview::refresh(const std::map<std::string, HostEntry>& hosts,
         if (pdu_enabled && e.effective_pdu_outlet() > 0) {
             for (const auto& outlet : outlets) {
                 if (outlet.outlet != e.effective_pdu_outlet()) continue;
-                snprintf(buf, sizeof(buf), "PDU %d  %.0fW", outlet.outlet, outlet.watts);
+                snprintf(buf, sizeof(buf), "PDU %d  %s", outlet.outlet,
+                         outlet.on ? "ON" : "OFF");
                 lv_label_set_text(power, buf);
                 break;
             }

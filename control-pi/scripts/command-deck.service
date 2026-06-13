@@ -5,12 +5,12 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=pi
-Group=pi
+User=nick
+Group=nick
 # Give access to framebuffer and input devices
 SupplementaryGroups=video input
-Environment=HOME=/home/pi
-WorkingDirectory=/home/pi
+Environment=HOME=/home/nick
+WorkingDirectory=/home/nick
 ExecStart=/usr/local/bin/command-deck /etc/command-deck/config.toml
 Restart=always
 RestartSec=3

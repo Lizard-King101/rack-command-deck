@@ -10,14 +10,17 @@ include(CTest)
 FetchContent_Declare(lvgl
     GIT_REPOSITORY https://github.com/lvgl/lvgl.git
     GIT_TAG        v9.2.0
+    GIT_SHALLOW    TRUE
 )
 FetchContent_Declare(nlohmann_json
     GIT_REPOSITORY https://github.com/nlohmann/json.git
     GIT_TAG        v3.11.3
+    GIT_SHALLOW    TRUE
 )
 FetchContent_Declare(tomlplusplus
     GIT_REPOSITORY https://github.com/marzer/tomlplusplus.git
     GIT_TAG        v3.4.0
+    GIT_SHALLOW    TRUE
 )
 
 # Must be set before FetchContent_MakeAvailable so LVGL's own CMakeLists picks
@@ -112,6 +115,19 @@ if(BUILD_TESTING)
         ${SQLITE3_LIBRARIES} ${LIBCURL_LIBRARIES}
     )
     add_test(NAME power-core COMMAND power-core-test)
+
+    # Manual live-network diagnostic; intentionally excluded from CTest.
+    add_executable(pdu-network-test
+        tests/pdu_network_test.cpp
+        src/config.cpp
+        src/pdu/synlink_client.cpp
+    )
+    target_include_directories(pdu-network-test PRIVATE
+        src ${CMAKE_SOURCE_DIR}/../shared
+    )
+    target_link_libraries(pdu-network-test PRIVATE
+        nlohmann_json::nlohmann_json tomlplusplus::tomlplusplus ${LIBCURL_LIBRARIES}
+    )
 endif()
 
 if(EMULATOR)
@@ -126,3 +142,5 @@ install(TARGETS command-deck DESTINATION /usr/local/bin)
 install(FILES   config.toml  DESTINATION /etc/command-deck)
 install(FILES   scripts/command-deck.service
     DESTINATION /etc/systemd/system)
+install(PROGRAMS scripts/command-deck-update
+    DESTINATION /usr/local/libexec)

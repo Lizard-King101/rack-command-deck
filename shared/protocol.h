@@ -129,10 +129,15 @@ struct OutletState {
     int         outlet  = 0;
     std::string name;
     bool        on      = false;
-    float       watts   = 0;
-    float       amps    = 0;
-    float       volts   = 0;
 };
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(OutletState, outlet, name, on, watts, amps, volts)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(OutletState, outlet, name, on)
+
+struct PduSnapshot {
+    std::vector<OutletState> outlets;
+    float inlet_amps = 0;
+    float nominal_volts = 0;
+    float estimated_watts = 0;
+    bool  measurements_available = false;
+};
 
 } // namespace protocol

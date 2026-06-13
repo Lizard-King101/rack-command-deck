@@ -23,8 +23,8 @@ struct Config {
         bool        enabled  = false;
         std::string host;
         uint16_t    port     = 80;
-        std::string username;
-        std::string password;
+        std::string access_token;
+        float       nominal_voltage = 120.f;
         int         poll_ms  = 5000;
     } pdu;
 
@@ -40,6 +40,12 @@ struct Config {
         bool        load_shedding_enabled = false;
         int         startup_readiness_s = 10;
     } power;
+
+    struct Update {
+        bool        enabled = false;
+        std::string repo_path;
+        std::string helper_path = "/usr/local/libexec/command-deck-update";
+    } update;
 
     struct PowerGroup {
         std::string name;

@@ -13,10 +13,10 @@ height        = 480
 
 [pdu]
 enabled  = true
-host     = "192.168.1.5"
+host     = "192.168.4.100"
 port     = 80
-username = "admin"
-password = "changeme"
+access_token = "Iv1w4sHqfst0umkwClo"
+nominal_voltage = 120
 poll_ms  = 5000
 
 [power]
@@ -30,6 +30,11 @@ critical_watts = 750
 critical_hold_s = 30
 load_shedding_enabled = false
 startup_readiness_s = 10
+
+[update]
+enabled = true
+repo_path = "/home/nick/command-deck"
+helper_path = "/usr/local/libexec/command-deck-update"
 
 # Dependencies define group startup order. Shutdown uses the reverse order.
 #[[power_group]]

@@ -37,8 +37,8 @@ bool PowerHistoryStore::exec(const char* sql) const {
     return db_ && sqlite3_exec(as_db(db_), sql, nullptr, nullptr, nullptr) == SQLITE_OK;
 }
 
-void PowerHistoryStore::record(const std::vector<protocol::OutletState>& outlets, int64_t ts) {
-    if (!db_ || outlets.empty()) return;
+void PowerHistoryStore::record(const protocol::PduSnapshot& snapshot, int64_t ts) {
+    if (!db_ || !snapshot.measurements_available) return;
     std::lock_guard<std::mutex> lk(mu_);
     ts = now_or(ts);
     exec("BEGIN");
@@ -55,14 +55,7 @@ void PowerHistoryStore::record(const std::vector<protocol::OutletState>& outlets
         sqlite3_step(stmt);
         sqlite3_reset(stmt);
     };
-    float watts = 0, amps = 0, volts = 0;
-    for (const auto& outlet : outlets) {
-        insert(outlet.outlet, outlet.watts, outlet.amps, outlet.volts, outlet.on);
-        watts += outlet.watts;
-        amps += outlet.amps;
-        volts = std::max(volts, outlet.volts);
-    }
-    insert(0, watts, amps, volts, true);
+    insert(0, snapshot.estimated_watts, snapshot.inlet_amps, snapshot.nominal_volts, true);
     sqlite3_finalize(stmt);
     exec("COMMIT");
 }
