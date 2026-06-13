@@ -101,6 +101,10 @@ void UpdateManager::run() {
     } else {
         if (error.empty()) error = last_output.empty() ? "Update failed" : last_output;
         else if (!last_output.empty()) error += ": " + last_output;
+        if (error.find("Repository path does not exist") != std::string::npos ||
+            error.find("repository path") != std::string::npos) {
+            error = "Installed updater helper is outdated; rerun install-updater.sh";
+        }
         set_status(UpdateState::Failed, status().progress, error);
     }
 }

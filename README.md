@@ -119,8 +119,10 @@ sudo bash control-pi/scripts/install-updater.sh
 ```
 
 The updater requires `curl`, `file`, `tar`, and `sha256sum`. It verifies the
-release checksum, archive contents, and ARM64 architecture before atomically
-installing the dashboard binary. The previous binary is retained at
+release checksum, archive contents, ARM64 architecture, and runtime linkage
+before atomically installing the dashboard binary. Releases bundle their
+matching libwebsockets runtime under `/usr/local/lib/command-deck` to avoid Pi
+OS ABI differences. The previous binary is retained at
 `/usr/local/bin/command-deck.previous`.
 
 Changes to the root-owned updater helper require rerunning `install-updater.sh`

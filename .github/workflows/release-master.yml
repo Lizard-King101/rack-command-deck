@@ -32,7 +32,7 @@ jobs:
           apt-get install -y --no-install-recommends \
             build-essential ca-certificates ccache cmake curl file gh git gzip \
             libcurl4-openssl-dev libsdl2-dev libsqlite3-dev libwebsockets-dev \
-            pkg-config tar zstd
+            patchelf pkg-config tar zstd
 
       - uses: actions/checkout@v4
         with:
@@ -64,9 +64,16 @@ jobs:
       - name: Package ARM64 release
         run: |
           file "$BUILD_DIR/command-deck" | grep -Eq 'ARM aarch64|ARM64'
-          mkdir -p dist/package
+          mkdir -p dist/package/lib
           install -m 0755 "$BUILD_DIR/command-deck" dist/package/command-deck
-          tar -C dist/package -czf dist/command-deck-linux-arm64.tar.gz command-deck
+          lws_library=$(ldd "$BUILD_DIR/command-deck" | awk '/libwebsockets\\.so/ { print $3; exit }')
+          test -n "$lws_library"
+          install -m 0755 "$lws_library" dist/package/lib/
+          patchelf --set-rpath '$ORIGIN/../lib/command-deck' dist/package/command-deck
+          test "$(patchelf --print-rpath dist/package/command-deck)" = '$ORIGIN/../lib/command-deck'
+          LD_LIBRARY_PATH=dist/package/lib ldd dist/package/command-deck | tee dist/ldd.txt
+          ! grep -q 'not found' dist/ldd.txt
+          tar -C dist/package -czf dist/command-deck-linux-arm64.tar.gz command-deck lib
           cd dist
           sha256sum command-deck-linux-arm64.tar.gz > command-deck-linux-arm64.tar.gz.sha256
 

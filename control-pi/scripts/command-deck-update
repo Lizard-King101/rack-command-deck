@@ -47,17 +47,31 @@ expected_checksum=$(<"$checksum")
     fail "Release checksum verification failed"
 
 progress 60 "Validating release package"
-[[ $(tar -tzf "$archive") == command-deck ]] ||
+archive_files=$(tar -tzf "$archive")
+[[ $archive_files == command-deck$'\n'lib/$'\n'lib/libwebsockets.so.* ]] ||
     fail "Release archive contains unexpected files"
 tar -xzf "$archive" -C "$extract_dir" --no-same-owner --no-same-permissions
 binary=$extract_dir/command-deck
 [[ -f $binary && ! -L $binary ]] || fail "Release does not contain a regular dashboard binary"
+library=$(find "$extract_dir/lib" -maxdepth 1 -type f -name 'libwebsockets.so.*' -print -quit)
+[[ -n $library && ! -L $library ]] || fail "Release does not contain libwebsockets"
 file -b "$binary" | grep -Eq 'ARM aarch64|ARM64' ||
     fail "Release dashboard binary is not ARM64"
+file -b "$library" | grep -Eq 'ARM aarch64|ARM64' ||
+    fail "Release libwebsockets is not ARM64"
+LD_LIBRARY_PATH="$extract_dir/lib" ldd "$binary" | grep -q 'not found' &&
+    fail "Release has unavailable runtime dependencies"
 
 progress 85 "Installing dashboard"
 candidate=/usr/local/bin/.command-deck.new.$$
+library_dir=/usr/local/lib/command-deck
+mkdir -p "$library_dir"
+install -o root -g root -m 0755 "$library" "$library_dir/"
 install -o root -g root -m 0755 "$binary" "$candidate"
+if ldd "$candidate" | grep -q 'not found'; then
+    rm -f "$candidate"
+    fail "Installed candidate has unavailable runtime dependencies"
+fi
 if [[ -f /usr/local/bin/command-deck ]]; then
     install -o root -g root -m 0755 /usr/local/bin/command-deck \
         /usr/local/bin/command-deck.previous
