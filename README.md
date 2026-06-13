@@ -88,7 +88,7 @@ The normal Pi update path downloads the ARM64 release built by GitHub Actions.
 To build natively on the Pi instead:
 
 ```bash
-sudo apt install libwebsockets-dev libcurl4-openssl-dev libsqlite3-dev cmake build-essential git
+sudo apt install libwebsockets-dev libcurl4-openssl-dev libsdl2-dev libsqlite3-dev cmake build-essential git
 cd control-pi
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j$(nproc)

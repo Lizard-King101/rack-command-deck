@@ -31,7 +31,8 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends \
             build-essential ca-certificates ccache cmake curl file gh git gzip \
-            libcurl4-openssl-dev libsqlite3-dev libwebsockets-dev pkg-config tar zstd
+            libcurl4-openssl-dev libsdl2-dev libsqlite3-dev libwebsockets-dev \
+            pkg-config tar zstd
 
       - uses: actions/checkout@v4
         with:
