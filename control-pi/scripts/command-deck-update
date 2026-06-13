@@ -10,42 +10,59 @@ fail() {
     exit 1
 }
 
+tmpdir=
+cleanup() {
+    [[ -z $tmpdir ]] || rm -rf "$tmpdir"
+}
+
+trap cleanup EXIT
 trap 'fail "Update failed near line $LINENO"' ERR
 
 [[ $EUID -eq 0 ]] || fail "Updater must run through sudo"
-[[ $# -eq 1 ]] || fail "Updater requires exactly one repository path"
-[[ -n ${SUDO_USER:-} && $SUDO_USER != root ]] || fail "Could not determine service user"
+[[ $# -eq 1 ]] || fail "Updater requires exactly one release URL"
+[[ $1 == https://* ]] || fail "Release URL must use HTTPS"
 
-repo=$(realpath -e "$1") || fail "Repository path does not exist"
-[[ $(stat -c '%U' "$repo") == "$SUDO_USER" ]] || fail "Repository must be owned by $SUDO_USER"
-[[ $(runuser -u "$SUDO_USER" -- git -C "$repo" rev-parse --show-toplevel) == "$repo" ]] ||
-    fail "Configured path is not the repository root"
+release_url=$1
+archive_name=command-deck-linux-arm64.tar.gz
+checksum_name=$archive_name.sha256
+tmpdir=$(mktemp -d)
+archive=$tmpdir/$archive_name
+checksum=$tmpdir/$checksum_name
+extract_dir=$tmpdir/extract
+mkdir "$extract_dir"
 
-run_as_user() {
-    runuser -u "$SUDO_USER" -- "$@"
-}
+progress 10 "Downloading latest release"
+curl --fail --location --silent --show-error \
+    --retry 3 --retry-delay 2 --retry-all-errors \
+    --output "$archive" "$release_url"
+curl --fail --location --silent --show-error \
+    --retry 3 --retry-delay 2 --retry-all-errors \
+    --output "$checksum" "$release_url.sha256"
 
-progress 5 "Checking repository"
-run_as_user git -C "$repo" diff --quiet || fail "Repository has uncommitted changes"
-run_as_user git -C "$repo" diff --cached --quiet || fail "Repository has staged changes"
-[[ -z $(run_as_user git -C "$repo" status --porcelain --untracked-files=normal) ]] ||
-    fail "Repository has untracked files"
-run_as_user git -C "$repo" remote get-url origin >/dev/null ||
-    fail "Repository has no origin remote"
+progress 45 "Verifying release checksum"
+expected_checksum=$(<"$checksum")
+[[ $expected_checksum =~ ^[[:xdigit:]]{64}[[:space:]][[:space:]]command-deck-linux-arm64\.tar\.gz$ ]] ||
+    fail "Release checksum file is malformed"
+(cd "$tmpdir" && sha256sum --check --status "$checksum_name") ||
+    fail "Release checksum verification failed"
 
-progress 15 "Downloading latest code"
-run_as_user git -C "$repo" pull --ff-only
+progress 60 "Validating release package"
+[[ $(tar -tzf "$archive") == command-deck ]] ||
+    fail "Release archive contains unexpected files"
+tar -xzf "$archive" -C "$extract_dir" --no-same-owner --no-same-permissions
+binary=$extract_dir/command-deck
+[[ -f $binary && ! -L $binary ]] || fail "Release does not contain a regular dashboard binary"
+file -b "$binary" | grep -Eq 'ARM aarch64|ARM64' ||
+    fail "Release dashboard binary is not ARM64"
 
-progress 35 "Configuring release build"
-run_as_user cmake -S "$repo/control-pi" -B "$repo/control-pi/build-pi" \
-    -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
-
-progress 45 "Building dashboard"
-run_as_user cmake --build "$repo/control-pi/build-pi" -j2
-
-progress 90 "Installing dashboard"
-install -o root -g root -m 0755 "$repo/control-pi/build-pi/command-deck" \
-    /usr/local/bin/command-deck
+progress 85 "Installing dashboard"
+candidate=/usr/local/bin/.command-deck.new.$$
+install -o root -g root -m 0755 "$binary" "$candidate"
+if [[ -f /usr/local/bin/command-deck ]]; then
+    install -o root -g root -m 0755 /usr/local/bin/command-deck \
+        /usr/local/bin/command-deck.previous
+fi
+mv -f "$candidate" /usr/local/bin/command-deck
 
 progress 100 "Update installed; restarting dashboard"
 unit="command-deck-restart-$(date +%s)"

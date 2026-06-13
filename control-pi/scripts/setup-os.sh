@@ -30,9 +30,8 @@ apt-get install -y \
     libcurl4-openssl-dev \
     libsqlite3-dev \
     libgpiod-dev \
-    cmake \
-    build-essential \
-    git \
+    curl \
+    file \
     evtest       # useful for identifying touch device paths
 
 echo "==> Disabling unused services"

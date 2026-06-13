@@ -33,7 +33,7 @@ startup_readiness_s = 10
 
 [update]
 enabled = true
-repo_path = "/home/nick/command-deck"
+release_url = "https://github.com/Lizard-King101/rack-command-deck/releases/download/latest/command-deck-linux-arm64.tar.gz"
 helper_path = "/usr/local/libexec/command-deck-update"
 
 # Dependencies define group startup order. Shutdown uses the reverse order.

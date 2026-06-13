@@ -16,7 +16,7 @@ bool UpdateManager::available() const {
 #ifdef EMULATOR_BUILD
     return false;
 #else
-    return config_.enabled && !config_.repo_path.empty() && !config_.helper_path.empty();
+    return config_.enabled && !config_.release_url.empty() && !config_.helper_path.empty();
 #endif
 }
 
@@ -61,7 +61,7 @@ void UpdateManager::run() {
         dup2(pipe_fds[1], STDERR_FILENO);
         close(pipe_fds[1]);
         execl("/usr/bin/sudo", "sudo", "-n", config_.helper_path.c_str(),
-              config_.repo_path.c_str(), static_cast<char*>(nullptr));
+              config_.release_url.c_str(), static_cast<char*>(nullptr));
         _exit(127);
     }
 

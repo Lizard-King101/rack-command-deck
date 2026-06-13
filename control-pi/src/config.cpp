@@ -43,7 +43,7 @@ Config Config::load(const std::string& path) {
         (int64_t)c.power.startup_readiness_s);
 
     c.update.enabled = tbl["update"]["enabled"].value_or(c.update.enabled);
-    c.update.repo_path = tbl["update"]["repo_path"].value_or(c.update.repo_path);
+    c.update.release_url = tbl["update"]["release_url"].value_or(c.update.release_url);
     c.update.helper_path = tbl["update"]["helper_path"].value_or(c.update.helper_path);
 
     if (auto groups = tbl["power_group"].as_array()) {

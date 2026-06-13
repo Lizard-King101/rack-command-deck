@@ -113,15 +113,15 @@ ScreenSettings::ScreenSettings(lv_obj_t* parent, const Config& cfg, ActivityStor
 
     lv_obj_t* update_panel = make_panel();
     make_section(update_panel, "DASHBOARD UPDATE");
-    add_kv(update_panel, "Repository", cfg_.update.repo_path.empty() ? "not configured" :
-           cfg_.update.repo_path.c_str());
+    add_kv(update_panel, "Release", cfg_.update.release_url.empty() ? "not configured" :
+           cfg_.update.release_url.c_str());
 
     btn_update_ = lv_button_create(update_panel);
     lv_obj_add_style(btn_update_, &styles::btn_action, 0);
     lv_obj_add_style(btn_update_, &styles::btn_action_pressed, LV_STATE_PRESSED);
     styles::make_static(btn_update_);
     lv_obj_t* update_btn_label = lv_label_create(btn_update_);
-    lv_label_set_text(update_btn_label, "PULL, BUILD, AND RESTART");
+    lv_label_set_text(update_btn_label, "DOWNLOAD, INSTALL, AND RESTART");
     lv_obj_center(update_btn_label);
     lv_obj_add_event_cb(btn_update_, +[](lv_event_t* event) {
         static_cast<ScreenSettings*>(lv_event_get_user_data(event))->updater_.start();

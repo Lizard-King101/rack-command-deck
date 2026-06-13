@@ -43,7 +43,7 @@ struct Config {
 
     struct Update {
         bool        enabled = false;
-        std::string repo_path;
+        std::string release_url;
         std::string helper_path = "/usr/local/libexec/command-deck-update";
     } update;
 

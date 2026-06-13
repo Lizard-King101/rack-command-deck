@@ -82,9 +82,10 @@ cmake --build build -j$(nproc)
 
 Opens an 800×480 SDL2 window. Mouse = touch.
 
-### control-pi — Pi target
+### control-pi — Pi target (manual build fallback)
 
-Build natively on the Pi (recommended):
+The normal Pi update path downloads the ARM64 release built by GitHub Actions.
+To build natively on the Pi instead:
 
 ```bash
 sudo apt install libwebsockets-dev libcurl4-openssl-dev libsqlite3-dev cmake build-essential git
@@ -97,13 +98,17 @@ sudo systemctl enable --now command-deck
 
 ### Updating from the touchscreen
 
-The System tab can pull, build, install, and restart the dashboard while showing
-progress. Configure the Pi's checkout in `/etc/command-deck/config.toml`:
+Every successful push to `master` builds and tests the dashboard in a native
+ARM64 Debian Bookworm environment, then replaces the assets on the rolling
+`latest` GitHub prerelease. The System tab downloads, verifies, installs, and
+restarts that release while showing progress.
+
+Configure `/etc/command-deck/config.toml`:
 
 ```toml
 [update]
 enabled = true
-repo_path = "/home/nick/command-deck"
+release_url = "https://github.com/Lizard-King101/rack-command-deck/releases/download/latest/command-deck-linux-arm64.tar.gz"
 helper_path = "/usr/local/libexec/command-deck-update"
 ```
 
@@ -113,11 +118,34 @@ Install the root-owned helper and its narrowly scoped sudo rule once:
 sudo bash control-pi/scripts/install-updater.sh
 ```
 
-The checkout must be clean, owned by the dashboard service user, and have an
-`origin` remote. The updater uses `git pull --ff-only`, builds in
-`control-pi/build-pi`, installs only the dashboard binary, then schedules a
-dashboard restart. Changes to the root-owned updater helper require rerunning
-`install-updater.sh` manually.
+The updater requires `curl`, `file`, `tar`, and `sha256sum`. It verifies the
+release checksum, archive contents, and ARM64 architecture before atomically
+installing the dashboard binary. The previous binary is retained at
+`/usr/local/bin/command-deck.previous`.
+
+Changes to the root-owned updater helper require rerunning `install-updater.sh`
+manually. To migrate an existing installation, perform one final touchscreen
+update with the old source-build updater so the new dashboard binary is
+installed. Then rerun `install-updater.sh` and replace `repo_path` with
+`release_url` in `/etc/command-deck/config.toml`.
+
+### GitHub Actions release cache
+
+The release workflow caches `control-pi/build-release` and `ccache` output.
+CMake configuration still runs on every build, but unchanged FetchContent
+dependencies and compiled objects are reused.
+
+For changes that require a completely clean state, increment `CACHE_EPOCH` in
+`.github/workflows/release-master.yml` before pushing. To remove all existing
+repository caches manually, use:
+
+```bash
+gh cache delete --all --confirm
+```
+
+Caches can also be removed under the repository's **Actions > Caches** page.
+Changing the cache epoch is the preferred documented reset because it guarantees
+the next release build cannot restore an older cache.
 
 ### metrics-agent
 

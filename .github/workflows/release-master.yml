@@ -1,0 +1,97 @@
+name: Release master
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-master
+  cancel-in-progress: true
+
+jobs:
+  build-test-release:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04-arm
+    container:
+      image: debian:bookworm
+
+    env:
+      BUILD_DIR: control-pi/build-release
+      CCACHE_DIR: /github/home/.cache/ccache
+      CACHE_EPOCH: v1
+
+    steps:
+      - name: Install build and release tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            build-essential ca-certificates ccache cmake curl file gh git gzip \
+            libcurl4-openssl-dev libsqlite3-dev libwebsockets-dev pkg-config tar zstd
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Restore CMake and compiler cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.BUILD_DIR }}
+            ${{ env.CCACHE_DIR }}
+          key: command-deck-bookworm-arm64-${{ env.CACHE_EPOCH }}-${{ hashFiles('control-pi/CMakeLists.txt', 'control-pi/lv_conf.h') }}-${{ github.sha }}
+          restore-keys: |
+            command-deck-bookworm-arm64-${{ env.CACHE_EPOCH }}-${{ hashFiles('control-pi/CMakeLists.txt', 'control-pi/lv_conf.h') }}-
+            command-deck-bookworm-arm64-${{ env.CACHE_EPOCH }}-
+
+      - name: Configure release build
+        run: |
+          cmake -S control-pi -B "$BUILD_DIR" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTING=ON \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+      - name: Build and test
+        run: |
+          cmake --build "$BUILD_DIR" --parallel
+          ctest --test-dir "$BUILD_DIR" --output-on-failure
+
+      - name: Package ARM64 release
+        run: |
+          file "$BUILD_DIR/command-deck" | grep -Eq 'ARM aarch64|ARM64'
+          mkdir -p dist/package
+          install -m 0755 "$BUILD_DIR/command-deck" dist/package/command-deck
+          tar -C dist/package -czf dist/command-deck-linux-arm64.tar.gz command-deck
+          cd dist
+          sha256sum command-deck-linux-arm64.tar.gz > command-deck-linux-arm64.tar.gz.sha256
+
+      - name: Publish rolling latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+          if gh release view latest >/dev/null 2>&1; then
+            gh release upload latest \
+              dist/command-deck-linux-arm64.tar.gz \
+              dist/command-deck-linux-arm64.tar.gz.sha256 \
+              --clobber
+            git tag --force latest "$GITHUB_SHA"
+            git push origin refs/tags/latest --force
+            gh release edit latest \
+              --title "Latest master build" \
+              --notes "Automated ARM64 Bookworm build from commit $GITHUB_SHA." \
+              --prerelease
+          else
+            gh release create latest \
+              dist/command-deck-linux-arm64.tar.gz \
+              dist/command-deck-linux-arm64.tar.gz.sha256 \
+              --target "$GITHUB_SHA" \
+              --title "Latest master build" \
+              --notes "Automated ARM64 Bookworm build from commit $GITHUB_SHA." \
+              --prerelease
+          fi
