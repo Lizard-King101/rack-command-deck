@@ -162,7 +162,7 @@ void styles::init() {
     lv_style_init(&btn_action);
     lv_style_set_bg_color(&btn_action, ACCENT_DIM);
     lv_style_set_bg_opa(&btn_action, LV_OPA_COVER);
-    lv_style_set_text_color(&btn_action, ACCENT);
+    lv_style_set_text_color(&btn_action, TEXT);
     lv_style_set_text_font(&btn_action, &lv_font_montserrat_14);
     lv_style_set_radius(&btn_action, 6);
     lv_style_set_border_width(&btn_action, 1);
