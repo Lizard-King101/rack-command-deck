@@ -22,14 +22,14 @@ refreshes from an in-memory store with no polling delay.
 
 | Tab | Description |
 |---|---|
-| Overview | Arc-gauge stats panel (online count, avg CPU%, avg RAM%, total watts), scrolling alert ticker for offline/hot hosts, tappable host rows |
-| Hosts | Full host-card grid — compact cards with CPU/RAM bars, temp, wattage, status strip |
+| Overview | Arc-gauge stats panel (online count, avg CPU%, avg RAM%, estimated rack watts), scrolling alert ticker for offline/hot hosts, tappable host rows |
+| Hosts | Full host-card grid — compact cards with CPU/RAM bars, temp, PDU state, status strip |
 | Power | Rack budget/energy summary, outlets, 30-day history, and power sequences |
 | System | Server/display config, connected-agent count, and recent command activity |
 | Host Detail | Full-screen per-host view (stats + 24h charts + power controls + services/scripts + machine config) |
 
 **Host Detail features:**
-- Power row: Reboot, Shutdown, Graceful Off (polls PDU wattage then cuts outlet), Wake-on-LAN, Outlet Toggle
+- Power row: Reboot, Shutdown, Graceful Off (waits for host offline then cuts outlet), Wake-on-LAN, Outlet Toggle
 - 24h history line charts for CPU%, temp, RAM%
 - Service control (start/stop/restart) — services defined in the agent's `agent.toml`
 - One-shot script buttons — scripts defined in the agent's `agent.toml`
@@ -94,6 +94,30 @@ cmake --build build -j$(nproc)
 sudo cmake --install build
 sudo systemctl enable --now command-deck
 ```
+
+### Updating from the touchscreen
+
+The System tab can pull, build, install, and restart the dashboard while showing
+progress. Configure the Pi's checkout in `/etc/command-deck/config.toml`:
+
+```toml
+[update]
+enabled = true
+repo_path = "/home/nick/command-deck"
+helper_path = "/usr/local/libexec/command-deck-update"
+```
+
+Install the root-owned helper and its narrowly scoped sudo rule once:
+
+```bash
+sudo bash control-pi/scripts/install-updater.sh
+```
+
+The checkout must be clean, owned by the dashboard service user, and have an
+`origin` remote. The updater uses `git pull --ff-only`, builds in
+`control-pi/build-pi`, installs only the dashboard binary, then schedules a
+dashboard restart. Changes to the root-owned updater helper require rerunning
+`install-updater.sh` manually.
 
 ### metrics-agent
 
@@ -162,8 +186,8 @@ touch_device = "/dev/input/event0"   # confirm with: evtest
 enabled  = true
 host     = "192.168.1.5"   # Synlink PDU IP
 port     = 80
-username = "admin"
-password = "changeme"
+access_token = "replace-with-personal-access-token"
+nominal_voltage = 120  # used with inlet RMS current to estimate rack watts
 poll_ms  = 5000
 
 [power]
@@ -321,20 +345,19 @@ All messages are JSON with a `type` field. See `shared/protocol.h` for the full 
 
 ### Graceful shutdown flow
 
-"Graceful Off" sends `shutdown` to the agent, then polls PDU wattage every 2 s.
-Once watts drop below 5 W (machine is fully off), the control Pi cuts the outlet.
-Timeout: 2 min waiting for offline, 5 min waiting for wattage to drop.
+"Graceful Off" sends `shutdown` to the agent, waits for it to go offline, then
+cuts its assigned PDU outlet. Timeout: 2 min waiting for offline.
 
 ---
 
 ## Synlink PDU notes
 
-`synlink_client.cpp` polls `http://<host>/api/v1/outlets` via HTTP GET and sends
-PUT requests to toggle outlets. Field names (`index`, `state`, `watt`, `current`,
-`voltage`) are based on common Synlink firmware — verify against your unit:
+`synlink_client.cpp` uses a SynOS personal access token, polls `/api/outlets`
+for switching state and `/api/inlets` for total inlet current, and sends PUT
+requests to toggle outlets. For current-only PDU models, estimated rack watts
+are calculated as inlet RMS current times the configured nominal voltage.
 
 ```bash
-curl -u admin:password http://<pdu-ip>/api/v1/outlets | python3 -m json.tool
+curl -H 'Authorization: Bearer <access-token>' \
+  http://<pdu-ip>/api/inlets | python3 -m json.tool
 ```
-
-Adjust field names in `src/pdu/synlink_client.cpp` if they differ.

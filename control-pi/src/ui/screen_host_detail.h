@@ -4,7 +4,6 @@
 #include "pdu/pdu_store.h"
 #include "command_router.h"
 #include "activity_store.h"
-#include "power/power_history_store.h"
 #include <functional>
 #include <string>
 #include <vector>
@@ -34,7 +33,7 @@ public:
 
     ScreenHostDetail(lv_obj_t* parent, MetricsStore& store,
                      PduStore& pdu, CommandRouter& router, ActivityStore& activity,
-                     PowerHistoryStore& power_history, BackCb on_back);
+                     BackCb on_back);
     ~ScreenHostDetail();
 
     lv_obj_t* root() const { return container_; }
@@ -90,7 +89,6 @@ private:
     PduStore&      pdu_;
     CommandRouter& router_;
     ActivityStore& activity_;
-    PowerHistoryStore& power_history_;
 
     lv_obj_t* container_   = nullptr;
     lv_obj_t* scroll_cont_ = nullptr;

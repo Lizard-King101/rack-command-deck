@@ -5,6 +5,8 @@ set -euo pipefail
 
 if [[ $EUID -ne 0 ]]; then echo "Run as root."; exit 1; fi
 
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+
 echo "==> Removing unnecessary packages"
 apt-get remove -y --purge \
     bluez bluetooth pi-bluetooth \
@@ -35,6 +37,11 @@ apt-get install -y \
 
 echo "==> Disabling unused services"
 SERVICES=(
+    display-manager.service
+    lightdm.service
+    gdm.service
+    gdm3.service
+    sddm.service
     bluetooth.service
     hciuart.service
     triggerhappy.service
@@ -48,10 +55,13 @@ for svc in "${SERVICES[@]}"; do
     systemctl stop    "$svc" 2>/dev/null || true
 done
 
+echo "==> Switching boot target to text console"
+systemctl set-default multi-user.target
+
 echo "==> Disabling swap (optional — comment out if you need it)"
-systemctl disable dphys-swapfile.service
-dphys-swapfile swapoff
-dphys-swapfile uninstall
+systemctl disable dphys-swapfile.service 2>/dev/null || true
+dphys-swapfile swapoff 2>/dev/null || true
+dphys-swapfile uninstall 2>/dev/null || true
 
 echo "==> Configuring /boot/firmware/config.txt"
 CFG=/boot/firmware/config.txt
@@ -68,12 +78,23 @@ grep -q 'dtoverlay=disable-bt' "$CFG" || echo 'dtoverlay=disable-bt' >> "$CFG"
 # Official 7" DSI touchscreen
 grep -q 'dtoverlay=vc4-kms-dsi-7inch' "$CFG" || echo 'dtoverlay=vc4-kms-dsi-7inch' >> "$CFG"
 
-echo "==> Enabling auto-login to console (for pi user)"
-raspi-config nonint do_boot_behaviour B2   # console autologin
+echo "==> Hiding the console cursor"
+CMDLINE=/boot/firmware/cmdline.txt
+grep -q 'vt.global_cursor_default=0' "$CMDLINE" || \
+    sed -i 's/$/ vt.global_cursor_default=0/' "$CMDLINE"
+
+echo "==> Disabling tty1 login prompt"
+systemctl disable getty@tty1.service 2>/dev/null || true
+systemctl mask getty@tty1.service 2>/dev/null || true
+rm -f /etc/systemd/system/getty@tty1.service.d/autologin.conf
+sed -i 's/\bconsole=tty1\b//g; s/  */ /g; s/ $//' "$CMDLINE"
 
 echo "==> Adjusting journald to limit log size"
 sed -i 's/#SystemMaxUse=/SystemMaxUse=50M/' /etc/systemd/journald.conf
 systemctl restart systemd-journald
+
+echo "==> Installing dashboard updater"
+bash "$SCRIPT_DIR/install-updater.sh"
 
 echo ""
 echo "==> Done. Build and install command-deck, then:"

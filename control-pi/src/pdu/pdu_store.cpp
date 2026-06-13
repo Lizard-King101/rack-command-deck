@@ -1,8 +1,12 @@
 #include "pdu_store.h"
 
-void PduStore::update(std::vector<protocol::OutletState> outlets) {
+void PduStore::update(protocol::PduSnapshot snapshot) {
     std::lock_guard<std::mutex> lk(mu_);
-    outlets_ = std::move(outlets);
+    outlets_ = std::move(snapshot.outlets);
+    total_watts_ = snapshot.estimated_watts;
+    inlet_amps_ = snapshot.inlet_amps;
+    nominal_volts_ = snapshot.nominal_volts;
+    measurements_available_ = snapshot.measurements_available;
     healthy_ = true;
     last_successful_poll_ = std::chrono::system_clock::now();
 }
@@ -24,9 +28,22 @@ std::optional<std::chrono::system_clock::time_point> PduStore::last_successful_p
 
 float PduStore::total_watts() const {
     std::lock_guard<std::mutex> lk(mu_);
-    float total = 0.f;
-    for (const auto& outlet : outlets_) total += outlet.watts;
-    return total;
+    return total_watts_;
+}
+
+float PduStore::inlet_amps() const {
+    std::lock_guard<std::mutex> lk(mu_);
+    return inlet_amps_;
+}
+
+float PduStore::nominal_volts() const {
+    std::lock_guard<std::mutex> lk(mu_);
+    return nominal_volts_;
+}
+
+bool PduStore::measurements_available() const {
+    std::lock_guard<std::mutex> lk(mu_);
+    return measurements_available_;
 }
 
 std::vector<protocol::OutletState> PduStore::get() const {

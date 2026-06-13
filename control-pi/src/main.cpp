@@ -8,6 +8,7 @@
 #include "power/power_history_store.h"
 #include "power/power_sequence_engine.h"
 #include "power/power_budget_controller.h"
+#include "update_manager.h"
 #include "ui/app_shell.h"
 #include <lvgl.h>
 #include <thread>
@@ -26,7 +27,7 @@
 #  include <src/others/snapshot/lv_snapshot.h>
 #else
 #  include <src/drivers/display/fb/lv_linux_fbdev.h>
-#  include <src/drivers/indev/evdev/lv_evdev.h>
+#  include <src/drivers/evdev/lv_evdev.h>
 #endif
 
 static std::atomic<bool> g_running = true;
@@ -73,18 +74,19 @@ static void inject_mock_data(MetricsStore& store, PduStore& pdu_store) {
     // make_host("compute-01",  94.f, 78.4f, 78.f, 16384, 2);
     // make_host("services",     6.f, 44.0f, 22.f, 4096, 3);
 
-    std::vector<protocol::OutletState> outlets;
+    protocol::PduSnapshot snapshot;
     for (int i = 1; i <= 8; ++i) {
         protocol::OutletState o;
         o.outlet = i;
         o.name   = "Outlet " + std::to_string(i);
         o.on     = (i != 5 && i != 8);
-        o.watts  = o.on ? (12.f + i * 2.5f) : 0.f;
-        o.amps   = o.watts / 120.f;
-        o.volts  = 120.f;
-        outlets.push_back(o);
+        snapshot.outlets.push_back(o);
     }
-    pdu_store.update(outlets);
+    snapshot.inlet_amps = 1.25f;
+    snapshot.nominal_volts = 120.f;
+    snapshot.estimated_watts = 150.f;
+    snapshot.measurements_available = true;
+    pdu_store.update(std::move(snapshot));
 }
 
 static bool save_screenshot(const char* path) {
@@ -161,8 +163,9 @@ int main(int argc, char* argv[]) {
 
     WsServer ws_server(store, activity, cfg.server.port);
     ws_server_ptr = &ws_server;
-    PowerSequenceEngine sequences(cfg, store, pdu_store, router, activity, power_history);
+    PowerSequenceEngine sequences(cfg, store, pdu_store, router, activity);
     PowerBudgetController budgets(cfg, pdu_store, sequences);
+    UpdateManager updater(cfg.update);
 
     // ── Background threads ────────────────────────────────────────────────────
     std::thread ws_thread([&]{ ws_server.run(); });
@@ -170,10 +173,10 @@ int main(int argc, char* argv[]) {
     std::thread pdu_thread([&]{
         while (g_running) {
             if (pdu_client) {
-                auto outlets = pdu_client->get_outlets();
-                if (!outlets.empty()) {
-                    pdu_store.update(outlets);
-                    power_history.record(outlets);
+                auto snapshot = pdu_client->get_snapshot();
+                if (snapshot && !snapshot->outlets.empty()) {
+                    power_history.record(*snapshot);
+                    pdu_store.update(std::move(*snapshot));
                     power_history.rollup_and_cleanup();
                 } else {
                     pdu_store.mark_poll_failed();
@@ -187,7 +190,8 @@ int main(int argc, char* argv[]) {
     signal(SIGINT,  on_signal);
     signal(SIGTERM, on_signal);
 
-    AppShell shell(store, pdu_store, activity, router, power_history, sequences, budgets, cfg);
+    AppShell shell(store, pdu_store, activity, router, power_history, sequences, budgets,
+                   updater, cfg);
     shell.build();
 
 #ifdef EMULATOR_BUILD

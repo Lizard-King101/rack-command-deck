@@ -6,11 +6,13 @@ PowerBudgetController::PowerBudgetController(const Config& cfg, PduStore& pdu,
     : cfg_(cfg.power), pdu_(pdu), sequences_(sequences) {}
 
 bool PowerBudgetController::warning() const {
-    return pdu_.healthy() && pdu_.total_watts() >= cfg_.warning_watts;
+    return pdu_.healthy() && pdu_.measurements_available() &&
+           pdu_.total_watts() >= cfg_.warning_watts;
 }
 
 bool PowerBudgetController::critical() const {
-    return pdu_.healthy() && pdu_.total_watts() >= cfg_.critical_watts;
+    return pdu_.healthy() && pdu_.measurements_available() &&
+           pdu_.total_watts() >= cfg_.critical_watts;
 }
 
 void PowerBudgetController::set_enabled(bool enabled) {
@@ -27,7 +29,7 @@ void PowerBudgetController::tick() {
         if (sequences_.status().succeeded) shed_groups_.insert(pending_shed_group_);
         pending_shed_group_.clear();
     }
-    if (!cfg_.load_shedding_enabled || !pdu_.healthy()) return;
+    if (!cfg_.load_shedding_enabled || !pdu_.healthy() || !pdu_.measurements_available()) return;
     auto now = std::chrono::steady_clock::now();
     if (!critical()) {
         critical_since_ = {};

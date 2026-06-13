@@ -30,7 +30,7 @@ public:
     ~PowerHistoryStore();
 
     bool ready() const { return db_ != nullptr; }
-    void record(const std::vector<protocol::OutletState>& outlets, int64_t ts = 0);
+    void record(const protocol::PduSnapshot& snapshot, int64_t ts = 0);
     void rollup_and_cleanup(int64_t now = 0);
     std::vector<PowerPoint> history(int outlet, int64_t since, size_t max_points = 240) const;
     PowerAnalytics analytics(int outlet, float current_watts = 0, int64_t now = 0) const;

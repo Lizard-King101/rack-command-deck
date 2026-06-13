@@ -4,7 +4,6 @@
 #include "config.h"
 #include "metrics_store.h"
 #include "pdu/pdu_store.h"
-#include "power_history_store.h"
 #include <chrono>
 #include <mutex>
 #include <string>
@@ -32,8 +31,7 @@ struct PowerSequenceStatus {
 class PowerSequenceEngine {
 public:
     PowerSequenceEngine(const Config& cfg, MetricsStore& metrics, PduStore& pdu,
-                        CommandRouter& router, ActivityStore& activity,
-                        PowerHistoryStore& history);
+                        CommandRouter& router, ActivityStore& activity);
 
     bool valid() const { return validation_error_.empty(); }
     const std::string& validation_error() const { return validation_error_; }
@@ -58,7 +56,6 @@ private:
     PduStore& pdu_;
     CommandRouter& router_;
     ActivityStore& activity_;
-    PowerHistoryStore& history_;
     std::string validation_error_;
 
     mutable std::mutex mu_;

@@ -109,7 +109,7 @@ void ScreenPdu::build_summary() {
         lv_obj_add_style(*value, &styles::label_title, 0);
         lv_obj_set_pos(*value, 0, 25);
     };
-    make_panel(0, 0, 250, 110, "CURRENT RACK LOAD", &lbl_load_);
+    make_panel(0, 0, 250, 110, "ESTIMATED RACK LOAD", &lbl_load_);
     make_panel(258, 0, 250, 110, "ESTIMATED ENERGY / COST", &lbl_energy_);
     make_panel(516, 0, 268, 110, "PDU HEALTH", &lbl_health_);
     auto* budget = lv_obj_create(views_[SUMMARY]);
@@ -183,9 +183,6 @@ void ScreenPdu::build_history() {
     make_button(controls, "24H", 70, [this] { history_days_ = 1; });
     make_button(controls, "7D", 70, [this] { history_days_ = 7; });
     make_button(controls, "30D", 70, [this] { history_days_ = 30; });
-    make_button(controls, "NEXT OUTLET", 160, [this] {
-        history_outlet_ = (history_outlet_ + 1) % (MAX_OUTLETS + 1);
-    });
     history_chart_ = lv_chart_create(views_[HISTORY]);
     lv_obj_set_size(history_chart_, 784, 285);
     lv_obj_set_pos(history_chart_, 0, 32);
@@ -245,41 +242,53 @@ void ScreenPdu::confirm() {
 }
 
 void ScreenPdu::refresh(const std::vector<protocol::OutletState>& outlets) {
-    float total = 0;
+    const float total = pdu_.total_watts();
+    const bool measured = pdu_.measurements_available();
     for (const auto& outlet : outlets) {
-        total += outlet.watts;
         int idx = outlet.outlet - 1;
         if (idx < 0 || idx >= MAX_OUTLETS || !tiles_[idx]) continue;
         char buf[96];
         snprintf(buf, sizeof(buf), "%s", outlet.name.empty()
                  ? ("Outlet " + std::to_string(outlet.outlet)).c_str() : outlet.name.c_str());
         lv_label_set_text(lv_obj_get_child(tiles_[idx], 0), buf);
-        snprintf(buf, sizeof(buf), "%.1fW  %.2fA  %.0fV", outlet.watts, outlet.amps, outlet.volts);
+        snprintf(buf, sizeof(buf), "State monitoring and switching");
         lv_label_set_text(lv_obj_get_child(tiles_[idx], 1), buf);
         lv_label_set_text(lv_obj_get_child(lv_obj_get_child(tiles_[idx], 2), 0),
                           outlet.on ? "ON" : "OFF");
     }
     char buf[256];
-    snprintf(buf, sizeof(buf), "%.0f W", total);
-    lv_label_set_text(lbl_load_, enabled_ ? buf : "--");
-    lv_bar_set_value(budget_bar_, std::min((int)total, (int)cfg_.power.critical_watts), LV_ANIM_OFF);
-    snprintf(buf, sizeof(buf), "Rack budget: %.0f / %.0f W%s", total, cfg_.power.critical_watts,
-             budgets_.critical() ? "  CRITICAL" : budgets_.warning() ? "  WARNING" : "");
+    if (enabled_ && measured)
+        snprintf(buf, sizeof(buf), "~%.0f W\n%.2f A @ %.0f V nominal",
+                 total, pdu_.inlet_amps(), pdu_.nominal_volts());
+    else
+        snprintf(buf, sizeof(buf), "--");
+    lv_label_set_text(lbl_load_, buf);
+    lv_bar_set_value(budget_bar_, measured ? std::min((int)total, (int)cfg_.power.critical_watts) : 0,
+                     LV_ANIM_OFF);
+    if (measured)
+        snprintf(buf, sizeof(buf), "Estimated rack budget: %.0f / %.0f W%s",
+                 total, cfg_.power.critical_watts,
+                 budgets_.critical() ? "  CRITICAL" : budgets_.warning() ? "  WARNING" : "");
+    else
+        snprintf(buf, sizeof(buf), "Rack power measurement unavailable");
     lv_label_set_text(lbl_budget_, buf);
     auto analytics = history_.analytics(0, total);
-    snprintf(buf, sizeof(buf), "%.2f kWh/day\n%.1f kWh/mo\n%s %.2f/mo",
-             analytics.daily_kwh, analytics.monthly_kwh, cfg_.power.currency.c_str(),
-             analytics.monthly_cost);
+    if (measured)
+        snprintf(buf, sizeof(buf), "%.2f kWh/day\n%.1f kWh/mo\n%s %.2f/mo",
+                 analytics.daily_kwh, analytics.monthly_kwh, cfg_.power.currency.c_str(),
+                 analytics.monthly_cost);
+    else
+        snprintf(buf, sizeof(buf), "--");
     lv_label_set_text(lbl_energy_, buf);
     lv_label_set_text(lbl_health_, pdu_.healthy() ? "CONNECTED" : "DISCONNECTED");
-    snprintf(buf, sizeof(buf), "Total: %.1f W", total);
+    if (measured) snprintf(buf, sizeof(buf), "Estimated total: %.1f W", total);
+    else snprintf(buf, sizeof(buf), "Estimated total: --");
     lv_label_set_text(lbl_total_, buf);
 
-    snprintf(buf, sizeof(buf), "%s // %d %s", history_outlet_ == 0 ? "RACK POWER" :
-             ("OUTLET " + std::to_string(history_outlet_)).c_str(), history_days_,
+    snprintf(buf, sizeof(buf), "ESTIMATED RACK POWER // %d %s", history_days_,
              history_days_ == 1 ? "DAY" : "DAYS");
     lv_label_set_text(history_title_, buf);
-    auto points = history_.history(history_outlet_,
+    auto points = history_.history(0,
         std::time(nullptr) - history_days_ * 86400LL, history_points_.size());
     history_points_.fill(LV_CHART_POINT_NONE);
     size_t offset = history_points_.size() > points.size() ? history_points_.size() - points.size() : 0;

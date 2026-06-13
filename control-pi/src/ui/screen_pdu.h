@@ -56,7 +56,6 @@ private:
     lv_obj_t* confirm_label_ = nullptr;
     ConfirmAction confirm_action_ = NONE;
     View active_view_ = SUMMARY;
-    int history_outlet_ = 0;
     int history_days_ = 30;
 
     PduStore& pdu_;

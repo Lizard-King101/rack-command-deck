@@ -19,8 +19,9 @@ Config Config::load(const std::string& path) {
     c.pdu.enabled  = tbl["pdu"]["enabled"].value_or(c.pdu.enabled);
     c.pdu.host     = tbl["pdu"]["host"].value_or(c.pdu.host);
     c.pdu.port     = (uint16_t)tbl["pdu"]["port"].value_or((int64_t)c.pdu.port);
-    c.pdu.username = tbl["pdu"]["username"].value_or(c.pdu.username);
-    c.pdu.password = tbl["pdu"]["password"].value_or(c.pdu.password);
+    c.pdu.access_token = tbl["pdu"]["access_token"].value_or(c.pdu.access_token);
+    c.pdu.nominal_voltage = (float)tbl["pdu"]["nominal_voltage"].value_or(
+        (double)c.pdu.nominal_voltage);
     c.pdu.poll_ms  = (int)tbl["pdu"]["poll_ms"].value_or((int64_t)c.pdu.poll_ms);
 
     c.power.database_path = tbl["power"]["database_path"].value_or(c.power.database_path);
@@ -40,6 +41,10 @@ Config Config::load(const std::string& path) {
         c.power.load_shedding_enabled);
     c.power.startup_readiness_s = (int)tbl["power"]["startup_readiness_s"].value_or(
         (int64_t)c.power.startup_readiness_s);
+
+    c.update.enabled = tbl["update"]["enabled"].value_or(c.update.enabled);
+    c.update.repo_path = tbl["update"]["repo_path"].value_or(c.update.repo_path);
+    c.update.helper_path = tbl["update"]["helper_path"].value_or(c.update.helper_path);
 
     if (auto groups = tbl["power_group"].as_array()) {
         for (const auto& node : *groups) {
