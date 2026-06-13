@@ -63,16 +63,30 @@ jobs:
 
       - name: Package ARM64 release
         run: |
-          file "$BUILD_DIR/command-deck" | grep -Eq 'ARM aarch64|ARM64'
+          file "$BUILD_DIR/command-deck"
+          file "$BUILD_DIR/command-deck" | grep -Eq 'ARM aarch64|ARM64' || {
+            echo "Built dashboard is not ARM64"
+            exit 1
+          }
           mkdir -p dist/package/lib
           install -m 0755 "$BUILD_DIR/command-deck" dist/package/command-deck
-          lws_library=$(ldd "$BUILD_DIR/command-deck" | awk '/libwebsockets\\.so/ { print $3; exit }')
-          test -n "$lws_library"
+          ldd "$BUILD_DIR/command-deck"
+          lws_library=$(ldd "$BUILD_DIR/command-deck" | awk '$1 ~ /^libwebsockets[.]so/ { print $3; exit }')
+          test -n "$lws_library" || {
+            echo "Could not locate the linked libwebsockets library"
+            exit 1
+          }
           install -m 0755 "$lws_library" dist/package/lib/
           patchelf --set-rpath '$ORIGIN/../lib/command-deck' dist/package/command-deck
-          test "$(patchelf --print-rpath dist/package/command-deck)" = '$ORIGIN/../lib/command-deck'
+          test "$(patchelf --print-rpath dist/package/command-deck)" = '$ORIGIN/../lib/command-deck' || {
+            echo "Packaged dashboard RPATH is incorrect"
+            exit 1
+          }
           LD_LIBRARY_PATH=dist/package/lib ldd dist/package/command-deck | tee dist/ldd.txt
-          ! grep -q 'not found' dist/ldd.txt
+          ! grep -q 'not found' dist/ldd.txt || {
+            echo "Packaged dashboard has unavailable runtime dependencies"
+            exit 1
+          }
           tar -C dist/package -czf dist/command-deck-linux-arm64.tar.gz command-deck lib
           cd dist
           sha256sum command-deck-linux-arm64.tar.gz > command-deck-linux-arm64.tar.gz.sha256
