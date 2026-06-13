@@ -57,6 +57,7 @@ void AppShell::build() {
     build_header();
     build_content_area();
     build_tab_bar();
+    build_update_overlay();
 
     activity_toast_ = lv_obj_create(root_screen_);
     lv_obj_set_size(activity_toast_, 620, 34);
@@ -89,6 +90,48 @@ void AppShell::build() {
     power_timer_   = lv_timer_create(shell_power_cb,    1000, this);
 
     update_header_clock();
+}
+
+void AppShell::build_update_overlay() {
+    update_overlay_ = lv_obj_create(root_screen_);
+    lv_obj_set_size(update_overlay_, 800, 480);
+    lv_obj_set_pos(update_overlay_, 0, 0);
+    lv_obj_set_style_bg_color(update_overlay_, styles::BG, 0);
+    lv_obj_set_style_bg_opa(update_overlay_, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(update_overlay_, 0, 0);
+    lv_obj_set_style_radius(update_overlay_, 0, 0);
+    styles::make_static(update_overlay_);
+    lv_obj_add_flag(update_overlay_, LV_OBJ_FLAG_HIDDEN);
+
+    lv_obj_t* panel = lv_obj_create(update_overlay_);
+    lv_obj_set_size(panel, 620, 220);
+    lv_obj_align(panel, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_add_style(panel, &styles::panel, 0);
+    lv_obj_set_style_border_color(panel, styles::ACCENT, 0);
+    lv_obj_set_style_border_width(panel, 2, 0);
+    styles::make_static(panel);
+
+    lv_obj_t* title = lv_label_create(panel);
+    lv_obj_add_style(title, &styles::label_title, 0);
+    lv_obj_set_style_text_color(title, styles::ACCENT, 0);
+    lv_label_set_text(title, "COMMAND DECK UPDATE");
+    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 30);
+
+    lbl_update_overlay_status_ = lv_label_create(panel);
+    lv_obj_add_style(lbl_update_overlay_status_, &styles::label_value, 0);
+    lv_obj_set_style_text_color(lbl_update_overlay_status_, styles::TEXT, 0);
+    lv_obj_set_width(lbl_update_overlay_status_, 560);
+    lv_obj_set_style_text_align(lbl_update_overlay_status_, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_text(lbl_update_overlay_status_, "Update installed.\nRestarting dashboard...");
+    lv_obj_align(lbl_update_overlay_status_, LV_ALIGN_CENTER, 0, 20);
+
+    lv_obj_t* bar = lv_bar_create(panel);
+    lv_obj_set_size(bar, 520, 10);
+    lv_obj_add_style(bar, &styles::bar_track, LV_PART_MAIN);
+    lv_obj_add_style(bar, &styles::bar_cpu_ind, LV_PART_INDICATOR);
+    lv_bar_set_range(bar, 0, 100);
+    lv_bar_set_value(bar, 100, LV_ANIM_OFF);
+    lv_obj_align(bar, LV_ALIGN_BOTTOM_MID, 0, -28);
 }
 
 void AppShell::build_header() {
@@ -130,7 +173,6 @@ void AppShell::build_header() {
     lv_obj_add_flag(btn_header_back_, LV_OBJ_FLAG_HIDDEN);
 
     lv_obj_t* back_lbl = lv_label_create(btn_header_back_);
-    lv_obj_add_style(back_lbl, &styles::label_secondary, 0);
     lv_label_set_text(back_lbl, "< Back");
 
     lv_obj_add_event_cb(btn_header_back_, +[](lv_event_t* e) {
@@ -342,6 +384,7 @@ void AppShell::refresh() {
     auto hosts   = store_.snapshot();
     auto outlets = pdu_.get();
     update_activity_toast();
+    update_update_overlay();
 
     if (detail_visible_ && screen_detail_) {
         // Keep detail header status current
@@ -373,6 +416,18 @@ void AppShell::refresh() {
         break;
     default: break;
     }
+}
+
+void AppShell::update_update_overlay() {
+    if (!update_overlay_ || !lbl_update_overlay_status_) return;
+
+    auto update = updater_.status();
+    if (update.state != UpdateState::Succeeded &&
+        !(update.state == UpdateState::Running && update.progress >= 100)) return;
+
+    lv_label_set_text(lbl_update_overlay_status_, "Update installed.\nRestarting dashboard...");
+    lv_obj_clear_flag(update_overlay_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_foreground(update_overlay_);
 }
 
 void AppShell::update_activity_toast() {

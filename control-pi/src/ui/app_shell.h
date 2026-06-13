@@ -52,9 +52,11 @@ private:
     void build_header();
     void build_content_area();
     void build_tab_bar();
+    void build_update_overlay();
     void update_header_clock();
     void update_alert_badge();
     void update_activity_toast();
+    void update_update_overlay();
 
     MetricsStore&   store_;
     PduStore&       pdu_;
@@ -75,6 +77,8 @@ private:
     lv_obj_t* tab_bar_      = nullptr;
     lv_obj_t* activity_toast_ = nullptr;
     lv_obj_t* lbl_activity_toast_ = nullptr;
+    lv_obj_t* update_overlay_ = nullptr;
+    lv_obj_t* lbl_update_overlay_status_ = nullptr;
     lv_obj_t* tab_btns_[TAB_COUNT] = {};
 
     // Detail-mode header widgets (hidden in normal mode)
