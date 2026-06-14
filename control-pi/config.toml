@@ -5,7 +5,7 @@ cache_file = "hosts.json"   # persists known hosts; edit to add MAC addresses fo
 
 [display]
 brightness    = 80
-screensaver_s = 0        # 0 = never dim
+screensaver_s = 0        # 0 = disabled; otherwise show rack status after this many idle seconds
 fb_device     = "/dev/fb0"
 touch_device  = "/dev/input/event0"
 width         = 800
@@ -35,6 +35,10 @@ startup_readiness_s = 10
 enabled = true
 release_url = "https://github.com/Lizard-King101/rack-command-deck/releases/download/latest/command-deck-linux-arm64.tar.gz"
 helper_path = "/usr/local/libexec/command-deck-update"
+
+[customization]
+# Empty uses $HOME/.config/command-deck/profiles
+profile_dir = ""
 
 # Dependencies define group startup order. Shutdown uses the reverse order.
 #[[power_group]]

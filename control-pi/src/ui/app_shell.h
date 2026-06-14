@@ -9,6 +9,7 @@
 #include "power/power_sequence_engine.h"
 #include "power/power_budget_controller.h"
 #include "update_manager.h"
+#include "ui/theme_profile.h"
 #include <memory>
 #include <string>
 
@@ -23,7 +24,7 @@ public:
     AppShell(MetricsStore& store, PduStore& pdu, ActivityStore& activity,
              CommandRouter& router, PowerHistoryStore& power_history,
              PowerSequenceEngine& sequences, PowerBudgetController& budgets,
-             UpdateManager& updater, const Config& cfg);
+             UpdateManager& updater, ThemeStore& themes, const Config& cfg);
     ~AppShell();
 
     void build();
@@ -38,11 +39,15 @@ public:
     void exit_detail_mode();
 
     // Called by static LVGL timer callbacks — must be public
-    void on_clock_tick()   { update_header_clock(); }
+    void on_clock_tick()   { update_header_clock(); update_screensaver(); }
     void on_history_tick() { store_.tick_history(); }
     void on_stale_tick()   { store_.tick_online_status(15); }
     void on_cursor_tick();
     void on_power_tick() { budgets_.tick(); }
+    void on_screensaver_tick();
+    void apply_theme(const ThemeProfile& profile);
+    void show_screensaver();
+    void show_theme_studio();
 
     // Accessed by cursor timer callback
     lv_obj_t* lbl_cursor_    = nullptr;
@@ -53,10 +58,15 @@ private:
     void build_content_area();
     void build_tab_bar();
     void build_update_overlay();
+    void build_screensaver();
     void update_header_clock();
     void update_alert_badge();
     void update_activity_toast();
     void update_update_overlay();
+    void update_screensaver();
+    void hide_screensaver();
+    int screensaver_timeout_s() const;
+    void rebuild_ui();
 
     MetricsStore&   store_;
     PduStore&       pdu_;
@@ -66,7 +76,9 @@ private:
     PowerSequenceEngine& sequences_;
     PowerBudgetController& budgets_;
     UpdateManager& updater_;
+    ThemeStore& themes_;
     const Config&   cfg_;
+    ThemeProfile theme_;
 
     lv_obj_t* root_screen_  = nullptr;
     lv_obj_t* header_bar_   = nullptr;
@@ -79,6 +91,14 @@ private:
     lv_obj_t* lbl_activity_toast_ = nullptr;
     lv_obj_t* update_overlay_ = nullptr;
     lv_obj_t* lbl_update_overlay_status_ = nullptr;
+    lv_obj_t* screensaver_ = nullptr;
+    lv_obj_t* screensaver_bg_gif_ = nullptr;
+    lv_obj_t* screensaver_veil_ = nullptr;
+    lv_obj_t* lbl_saver_clock_ = nullptr;
+    lv_obj_t* lbl_saver_date_ = nullptr;
+    lv_obj_t* lbl_saver_nodes_ = nullptr;
+    lv_obj_t* lbl_saver_power_ = nullptr;
+    lv_obj_t* lbl_saver_health_ = nullptr;
     lv_obj_t* tab_btns_[TAB_COUNT] = {};
 
     // Detail-mode header widgets (hidden in normal mode)
@@ -88,6 +108,7 @@ private:
 
     Tab  active_tab_     = TAB_OVERVIEW;
     bool detail_visible_ = false;
+    bool screensaver_visible_ = false;
     std::string detail_host_;
     std::string last_toast_id_;
     int         toast_ticks_ = 0;
@@ -104,4 +125,5 @@ private:
     lv_timer_t* stale_timer_   = nullptr;
     lv_timer_t* cursor_timer_  = nullptr;
     lv_timer_t* power_timer_   = nullptr;
+    lv_timer_t* screensaver_timer_ = nullptr;
 };

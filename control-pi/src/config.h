@@ -47,6 +47,10 @@ struct Config {
         std::string helper_path = "/usr/local/libexec/command-deck-update";
     } update;
 
+    struct Customization {
+        std::string profile_dir;
+    } customization;
+
     struct PowerGroup {
         std::string name;
         std::vector<std::string> members;

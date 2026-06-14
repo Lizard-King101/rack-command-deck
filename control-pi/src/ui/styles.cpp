@@ -1,5 +1,20 @@
 #include "styles.h"
 
+lv_color_t styles::BG;
+lv_color_t styles::BG_CARD;
+lv_color_t styles::BG_RAISED;
+lv_color_t styles::BG_HEADER;
+lv_color_t styles::ACCENT;
+lv_color_t styles::ACCENT2;
+lv_color_t styles::ACCENT_DIM;
+lv_color_t styles::OK;
+lv_color_t styles::WARN;
+lv_color_t styles::DANGER;
+lv_color_t styles::TEXT;
+lv_color_t styles::TEXT_DIM;
+lv_color_t styles::BORDER;
+lv_color_t styles::BAR_TRACK;
+
 lv_style_t styles::header_bar;
 lv_style_t styles::tab_bar;
 lv_style_t styles::tab_btn_active;
@@ -30,6 +45,39 @@ lv_style_t styles::label_ok;
 lv_style_t styles::label_badge;
 
 static bool s_initted = false;
+static ThemeProfile s_theme;
+
+static lv_color_t color(uint32_t rgb) {
+    return lv_color_make((rgb >> 16) & 0xff, (rgb >> 8) & 0xff, rgb & 0xff);
+}
+
+const ThemeProfile& styles::theme() { return s_theme; }
+
+static void load_palette(const ThemeProfile& p) {
+    styles::BG = color(p.bg); styles::BG_CARD = color(p.bg_card);
+    styles::BG_RAISED = color(p.bg_raised); styles::BG_HEADER = color(p.bg_header);
+    styles::ACCENT = color(p.accent); styles::ACCENT2 = color(p.accent2);
+    styles::ACCENT_DIM = color(p.accent_dim); styles::OK = color(p.ok);
+    styles::WARN = color(p.warn); styles::DANGER = color(p.danger);
+    styles::TEXT = color(p.text); styles::TEXT_DIM = color(p.text_dim);
+    styles::BORDER = color(p.border); styles::BAR_TRACK = color(p.bar_track);
+}
+
+static void reset_styles() {
+    lv_style_t* all[] = {
+        &styles::header_bar, &styles::tab_bar, &styles::tab_btn_active,
+        &styles::tab_btn_inactive, &styles::card_wide, &styles::card_wide_pressed,
+        &styles::panel, &styles::metric_tile, &styles::status_strip_ok,
+        &styles::status_strip_warn, &styles::status_strip_danger,
+        &styles::status_strip_offline, &styles::btn_action, &styles::btn_danger,
+        &styles::btn_action_pressed, &styles::section_label, &styles::bar_track,
+        &styles::bar_cpu_ind, &styles::bar_ram_ind, &styles::bar_temp_ind,
+        &styles::chart_bg, &styles::label_title, &styles::label_value,
+        &styles::label_secondary, &styles::label_warn, &styles::label_danger,
+        &styles::label_ok, &styles::label_badge
+    };
+    for (auto* style : all) lv_style_reset(style);
+}
 
 void styles::make_static(lv_obj_t* obj) {
     lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
@@ -57,9 +105,21 @@ void styles::make_vertical_scroll(lv_obj_t* obj) {
     lv_obj_set_scrollbar_mode(obj, LV_SCROLLBAR_MODE_AUTO);
 }
 
-void styles::init() {
+void styles::apply(const ThemeProfile& profile) {
+    if (s_initted) {
+        reset_styles();
+        s_initted = false;
+    }
+    init(profile);
+    lv_obj_report_style_change(nullptr);
+}
+
+void styles::init(const ThemeProfile& profile) {
     if (s_initted) return;
     s_initted = true;
+    s_theme = profile;
+    load_palette(profile);
+    const int density_pad = profile.density * 2;
 
     // Header bar
     lv_style_init(&header_bar);
@@ -90,7 +150,7 @@ void styles::init() {
     lv_style_set_border_width(&tab_btn_active, 2);
     lv_style_set_border_side(&tab_btn_active, LV_BORDER_SIDE_TOP);
     lv_style_set_border_color(&tab_btn_active, ACCENT);
-    lv_style_set_bg_color(&tab_btn_active, LV_COLOR_MAKE(0x18, 0x10, 0x30));
+    lv_style_set_bg_color(&tab_btn_active, BG_RAISED);
     lv_style_set_bg_opa(&tab_btn_active, LV_OPA_COVER);
     lv_style_set_radius(&tab_btn_active, 0);
 
@@ -106,32 +166,32 @@ void styles::init() {
     lv_style_init(&card_wide);
     lv_style_set_bg_color(&card_wide, BG_CARD);
     lv_style_set_bg_opa(&card_wide, LV_OPA_COVER);
-    lv_style_set_radius(&card_wide, 6);
+    lv_style_set_radius(&card_wide, profile.radius);
     lv_style_set_border_width(&card_wide, 1);
     lv_style_set_border_color(&card_wide, BORDER);
     lv_style_set_pad_all(&card_wide, 0);
 
     lv_style_init(&card_wide_pressed);
-    lv_style_set_bg_color(&card_wide_pressed, LV_COLOR_MAKE(0x20, 0x18, 0x38));
+    lv_style_set_bg_color(&card_wide_pressed, ACCENT_DIM);
 
     lv_style_init(&panel);
     lv_style_set_bg_color(&panel, BG_CARD);
     lv_style_set_bg_opa(&panel, LV_OPA_COVER);
-    lv_style_set_radius(&panel, 8);
+    lv_style_set_radius(&panel, profile.radius + 2);
     lv_style_set_border_width(&panel, 1);
     lv_style_set_border_color(&panel, BORDER);
-    lv_style_set_pad_all(&panel, 10);
-    lv_style_set_shadow_width(&panel, 8);
+    lv_style_set_pad_all(&panel, 10 + density_pad);
+    lv_style_set_shadow_width(&panel, profile.shadow);
     lv_style_set_shadow_color(&panel, BG);
     lv_style_set_shadow_opa(&panel, LV_OPA_40);
 
     lv_style_init(&metric_tile);
     lv_style_set_bg_color(&metric_tile, BG_RAISED);
     lv_style_set_bg_opa(&metric_tile, LV_OPA_COVER);
-    lv_style_set_radius(&metric_tile, 6);
+    lv_style_set_radius(&metric_tile, profile.radius);
     lv_style_set_border_width(&metric_tile, 1);
     lv_style_set_border_color(&metric_tile, BORDER);
-    lv_style_set_pad_all(&metric_tile, 8);
+    lv_style_set_pad_all(&metric_tile, 8 + density_pad);
 
     // Status strips (4px left border of cards)
     lv_style_init(&status_strip_ok);
@@ -164,7 +224,7 @@ void styles::init() {
     lv_style_set_bg_opa(&btn_action, LV_OPA_COVER);
     lv_style_set_text_color(&btn_action, TEXT);
     lv_style_set_text_font(&btn_action, &lv_font_montserrat_14);
-    lv_style_set_radius(&btn_action, 6);
+    lv_style_set_radius(&btn_action, profile.radius);
     lv_style_set_border_width(&btn_action, 1);
     lv_style_set_border_color(&btn_action, ACCENT);
     lv_style_set_pad_hor(&btn_action, 12);
@@ -175,11 +235,11 @@ void styles::init() {
     lv_style_set_text_color(&btn_action_pressed, BG);
 
     lv_style_init(&btn_danger);
-    lv_style_set_bg_color(&btn_danger, LV_COLOR_MAKE(0x44, 0x08, 0x14));
+    lv_style_set_bg_color(&btn_danger, BG_RAISED);
     lv_style_set_bg_opa(&btn_danger, LV_OPA_COVER);
     lv_style_set_text_color(&btn_danger, DANGER);
     lv_style_set_text_font(&btn_danger, &lv_font_montserrat_14);
-    lv_style_set_radius(&btn_danger, 6);
+    lv_style_set_radius(&btn_danger, profile.radius);
     lv_style_set_border_width(&btn_danger, 1);
     lv_style_set_border_color(&btn_danger, DANGER);
     lv_style_set_pad_hor(&btn_danger, 12);
@@ -219,7 +279,7 @@ void styles::init() {
     lv_style_set_bg_opa(&chart_bg, LV_OPA_COVER);
     lv_style_set_border_width(&chart_bg, 1);
     lv_style_set_border_color(&chart_bg, BORDER);
-    lv_style_set_radius(&chart_bg, 4);
+    lv_style_set_radius(&chart_bg, profile.radius);
     lv_style_set_pad_all(&chart_bg, 4);
     lv_style_set_line_color(&chart_bg, BORDER);  // grid lines
 
