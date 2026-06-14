@@ -18,7 +18,7 @@ jobs:
     if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04-arm
     container:
-      image: debian:bookworm
+      image: debian:trixie
 
     env:
       BUILD_DIR: control-pi/build-release
@@ -31,7 +31,8 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends \
             build-essential ca-certificates ccache cmake curl file gh git gzip \
-            libcurl4-openssl-dev libsdl2-dev libsqlite3-dev libwebsockets-dev \
+            libavcodec-dev libavformat-dev libavutil-dev libcurl4-openssl-dev \
+            libsdl2-dev libsqlite3-dev libswscale-dev libwebsockets-dev \
             patchelf pkg-config tar zstd
 
       - uses: actions/checkout@v4
@@ -44,10 +45,10 @@ jobs:
           path: |
             ${{ env.BUILD_DIR }}
             ${{ env.CCACHE_DIR }}
-          key: command-deck-bookworm-arm64-${{ env.CACHE_EPOCH }}-${{ hashFiles('control-pi/CMakeLists.txt', 'control-pi/lv_conf.h') }}-${{ github.sha }}
+          key: command-deck-trixie-arm64-${{ env.CACHE_EPOCH }}-${{ hashFiles('control-pi/CMakeLists.txt', 'control-pi/lv_conf.h') }}-${{ github.sha }}
           restore-keys: |
-            command-deck-bookworm-arm64-${{ env.CACHE_EPOCH }}-${{ hashFiles('control-pi/CMakeLists.txt', 'control-pi/lv_conf.h') }}-
-            command-deck-bookworm-arm64-${{ env.CACHE_EPOCH }}-
+            command-deck-trixie-arm64-${{ env.CACHE_EPOCH }}-${{ hashFiles('control-pi/CMakeLists.txt', 'control-pi/lv_conf.h') }}-
+            command-deck-trixie-arm64-${{ env.CACHE_EPOCH }}-
 
       - name: Configure release build
         run: |
@@ -106,7 +107,7 @@ jobs:
             git push origin refs/tags/latest --force
             gh release edit latest \
               --title "Latest master build" \
-              --notes "Automated ARM64 Bookworm build from commit $GITHUB_SHA." \
+              --notes "Automated ARM64 Debian Trixie build from commit $GITHUB_SHA." \
               --prerelease
           else
             gh release create latest \
@@ -114,6 +115,6 @@ jobs:
               dist/command-deck-linux-arm64.tar.gz.sha256 \
               --target "$GITHUB_SHA" \
               --title "Latest master build" \
-              --notes "Automated ARM64 Bookworm build from commit $GITHUB_SHA." \
+              --notes "Automated ARM64 Debian Trixie build from commit $GITHUB_SHA." \
               --prerelease
           fi

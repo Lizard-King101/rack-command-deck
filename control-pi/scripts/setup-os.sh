@@ -29,6 +29,10 @@ apt-get install -y \
     libwebsockets-dev \
     libcurl4-openssl-dev \
     libsqlite3-dev \
+    libavcodec-dev \
+    libavformat-dev \
+    libavutil-dev \
+    libswscale-dev \
     libgpiod-dev \
     curl \
     file \
