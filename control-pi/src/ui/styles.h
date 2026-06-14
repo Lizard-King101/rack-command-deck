@@ -1,8 +1,11 @@
 #pragma once
 #include <lvgl.h>
+#include "theme_profile.h"
 
 namespace styles {
-    void init();
+    void init(const ThemeProfile& profile);
+    void apply(const ThemeProfile& profile);
+    const ThemeProfile& theme();
     void make_static(lv_obj_t* obj);
     void make_scroll_passthrough(lv_obj_t* obj);
     void make_vertical_scroll(lv_obj_t* obj);
@@ -44,18 +47,18 @@ namespace styles {
     extern lv_style_t label_badge;     // Montserrat 12, TEXT on ACCENT_DIM bg
 
     // ── Palette ─────────────────────────────────────────────────────────────
-    static constexpr lv_color_t BG         = LV_COLOR_MAKE(0x08, 0x08, 0x0E);
-    static constexpr lv_color_t BG_CARD    = LV_COLOR_MAKE(0x14, 0x10, 0x20);
-    static constexpr lv_color_t BG_RAISED  = LV_COLOR_MAKE(0x1A, 0x15, 0x2A);
-    static constexpr lv_color_t BG_HEADER  = LV_COLOR_MAKE(0x0D, 0x0A, 0x1A);
-    static constexpr lv_color_t ACCENT     = LV_COLOR_MAKE(0x88, 0x44, 0xFF);
-    static constexpr lv_color_t ACCENT2    = LV_COLOR_MAKE(0x00, 0xE5, 0xFF);
-    static constexpr lv_color_t ACCENT_DIM = LV_COLOR_MAKE(0x44, 0x22, 0x88);
-    static constexpr lv_color_t OK         = LV_COLOR_MAKE(0x00, 0xFF, 0x88);
-    static constexpr lv_color_t WARN       = LV_COLOR_MAKE(0xFF, 0xAA, 0x00);
-    static constexpr lv_color_t DANGER     = LV_COLOR_MAKE(0xFF, 0x22, 0x44);
-    static constexpr lv_color_t TEXT       = LV_COLOR_MAKE(0xE8, 0xE0, 0xFF);
-    static constexpr lv_color_t TEXT_DIM   = LV_COLOR_MAKE(0x60, 0x55, 0x80);
-    static constexpr lv_color_t BORDER     = LV_COLOR_MAKE(0x2A, 0x20, 0x44);
-    static constexpr lv_color_t BAR_TRACK  = LV_COLOR_MAKE(0x22, 0x18, 0x38);
+    extern lv_color_t BG;
+    extern lv_color_t BG_CARD;
+    extern lv_color_t BG_RAISED;
+    extern lv_color_t BG_HEADER;
+    extern lv_color_t ACCENT;
+    extern lv_color_t ACCENT2;
+    extern lv_color_t ACCENT_DIM;
+    extern lv_color_t OK;
+    extern lv_color_t WARN;
+    extern lv_color_t DANGER;
+    extern lv_color_t TEXT;
+    extern lv_color_t TEXT_DIM;
+    extern lv_color_t BORDER;
+    extern lv_color_t BAR_TRACK;
 } // namespace styles

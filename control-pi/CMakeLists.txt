@@ -94,6 +94,14 @@ if(BUILD_TESTING)
     target_link_libraries(activity-store-test PRIVATE nlohmann_json::nlohmann_json)
     add_test(NAME activity-store COMMAND activity-store-test)
 
+    add_executable(theme-profile-test
+        tests/theme_profile_test.cpp
+        src/ui/theme_profile.cpp
+    )
+    target_include_directories(theme-profile-test PRIVATE src ${lvgl_SOURCE_DIR})
+    target_link_libraries(theme-profile-test PRIVATE tomlplusplus::tomlplusplus lvgl)
+    add_test(NAME theme-profile COMMAND theme-profile-test)
+
     add_executable(power-core-test
         tests/power_core_test.cpp
         src/activity_store.cpp

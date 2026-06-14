@@ -46,6 +46,9 @@ Config Config::load(const std::string& path) {
     c.update.release_url = tbl["update"]["release_url"].value_or(c.update.release_url);
     c.update.helper_path = tbl["update"]["helper_path"].value_or(c.update.helper_path);
 
+    c.customization.profile_dir = tbl["customization"]["profile_dir"].value_or(
+        c.customization.profile_dir);
+
     if (auto groups = tbl["power_group"].as_array()) {
         for (const auto& node : *groups) {
             auto* group = node.as_table();

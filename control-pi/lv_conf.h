@@ -8,7 +8,7 @@
 #define LV_COLOR_DEPTH 32
 
 /*-- Memory --*/
-#define LV_MEM_SIZE (2 * 1024 * 1024U) /* 2 MB for LVGL heap */
+#define LV_MEM_SIZE (32 * 1024 * 1024U) /* Room for optional full-HD GIF screensavers */
 #define LV_MEM_POOL_INCLUDE <stdlib.h>
 #define LV_MEM_POOL_ALLOC   malloc
 #define LV_MEM_POOL_FREE    free
@@ -36,11 +36,18 @@
 #define LV_USE_TABLE  1
 #define LV_USE_SCROLL 1
 #define LV_USE_SNAPSHOT 1
+#define LV_USE_GIF 1
+#define LV_GIF_CACHE_DECODE_DATA 0
+#define LV_USE_FS_STDIO 'A'
+#define LV_FS_STDIO_LETTER 'A'
+#define LV_FS_STDIO_PATH ""
+#define LV_FS_STDIO_CACHE_SIZE 0
 
 /*-- Fonts --*/
 #define LV_FONT_MONTSERRAT_12 1
 #define LV_FONT_MONTSERRAT_14 1
 #define LV_FONT_MONTSERRAT_20 1
+#define LV_FONT_MONTSERRAT_48 1
 #define LV_FONT_DEFAULT &lv_font_montserrat_14
 
 /*-- Linux drivers (hardware) --*/

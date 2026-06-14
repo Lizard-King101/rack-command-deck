@@ -10,6 +10,7 @@
 #include "power/power_budget_controller.h"
 #include "update_manager.h"
 #include "ui/app_shell.h"
+#include "ui/theme_profile.h"
 #include <lvgl.h>
 #include <thread>
 #include <chrono>
@@ -166,6 +167,7 @@ int main(int argc, char* argv[]) {
     PowerSequenceEngine sequences(cfg, store, pdu_store, router, activity);
     PowerBudgetController budgets(cfg, pdu_store, sequences);
     UpdateManager updater(cfg.update);
+    ThemeStore themes(cfg.customization.profile_dir);
 
     // ── Background threads ────────────────────────────────────────────────────
     std::thread ws_thread([&]{ ws_server.run(); });
@@ -191,10 +193,16 @@ int main(int argc, char* argv[]) {
     signal(SIGTERM, on_signal);
 
     AppShell shell(store, pdu_store, activity, router, power_history, sequences, budgets,
-                   updater, cfg);
+                   updater, themes, cfg);
     shell.build();
 
 #ifdef EMULATOR_BUILD
+    if (const char* theme = std::getenv("DECK_APPLY_THEME")) {
+        shell.apply_theme(ThemeStore::preset(theme));
+        for (int i = 0; i < 3; ++i) lv_timer_handler();
+    }
+    if (std::getenv("DECK_SHOW_SCREENSAVER"))
+        shell.show_screensaver();
     inject_mock_data(store, pdu_store);
     store.seed_mock_history();
     shell.refresh();
@@ -203,6 +211,7 @@ int main(int argc, char* argv[]) {
         if (name == "hosts") shell.show_tab(AppShell::TAB_HOSTS);
         else if (name == "power") shell.show_tab(AppShell::TAB_PDU);
         else if (name == "system") shell.show_tab(AppShell::TAB_SETTINGS);
+        else if (name == "theme") shell.show_theme_studio();
     }
     if (const char* host = std::getenv("DECK_SCREENSHOT_HOST"))
         shell.show_host_detail(host);

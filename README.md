@@ -28,6 +28,114 @@ refreshes from an in-memory store with no polling delay.
 | System | Server/display config, connected-agent count, and recent command activity |
 | Host Detail | Full-screen per-host view (stats + 24h charts + power controls + services/scripts + machine config) |
 
+### Theme Studio and branding
+
+The System tab includes a Theme Studio for selecting, previewing, editing, and
+sharing visual profiles. The bundled profiles cover neon dark, restrained dark,
+light, and high-contrast designs. Profiles control:
+
+- Semantic colors for surfaces, text, accents, status, charts, and bars
+- Branding title, subtitle, and compiled header mark
+- Corner radius, shadows, density, motion preference, and 12/24-hour clock
+
+Theme changes are previewed in the editor and applied without restarting the
+process. Applying a profile rebuilds the LVGL UI tree so existing inline styles
+also receive the new semantic palette.
+
+User profiles are self-contained TOML files stored under:
+
+```text
+$HOME/.config/command-deck/profiles/
+```
+
+Set `[customization].profile_dir` in `control-pi/config.toml` to use a different
+writable location. The operational config remains separate and can stay
+root-owned. The Theme Studio can duplicate profiles, export them to the sibling
+`exports/` directory, remove user copies, and reload profile files copied in
+from another machine.
+
+Example profile:
+
+```toml
+[profile]
+id = "my-rack"
+name = "My Rack"
+
+[branding]
+title = "LAB DECK"
+subtitle = "INFRASTRUCTURE"
+mark = "rack"
+
+[appearance]
+density = 0
+radius = 6
+shadow = 8
+motion = 1
+clock_24h = true
+screensaver_s = 300  # -1 uses display config, 0 disables
+
+[screensaver]
+background_enabled = true
+background = "/home/nick/.config/command-deck/assets/screensaver.gif"
+veil = 55
+card_opacity = 90
+
+[colors]
+bg = "#08080E"
+bg_card = "#141020"
+bg_raised = "#1A152A"
+bg_header = "#0D0A1A"
+accent = "#8844FF"
+accent2 = "#00E5FF"
+accent_dim = "#442288"
+ok = "#00FF88"
+warn = "#FFAA00"
+danger = "#FF2244"
+text = "#E8E0FF"
+text_dim = "#605580"
+border = "#2A2044"
+bar_track = "#221838"
+```
+
+The emulator accepts `DECK_THEME=neon|graphite|daylight|high-contrast` for
+repeatable visual checks.
+
+Theme Studio now opens as a dedicated System subpage. Its controls show the
+current value and explain which visual behavior changes before the user cycles
+to the next option.
+
+The rack-status screensaver shows time, date, online nodes, rack power, and
+health after the configured inactivity period. The first touch wakes the normal
+dashboard without activating the control underneath it. Its timeout can be
+stored in a profile or inherited from `[display].screensaver_s`.
+
+An optional looping GIF can render behind the screensaver status UI. Set
+`[screensaver].background` to its absolute path. The GIF is centered and scaled
+to cover the display; `800x480` is recommended to reduce memory and CPU use, but
+larger sources are supported. The GIF is loaded at runtime, so replacing it does
+not require rebuilding Command Deck. `veil` controls the percentage of theme
+background drawn over the animation; higher values improve readability. Missing
+or invalid files fall back to the normal static theme background.
+`card_opacity` controls how much of the animation shows through the rack-status
+cards; lower values create a stronger glass effect.
+
+#### Adding a compiled custom mark
+
+Custom header artwork is compiled into the binary, so the Pi does not need a
+runtime PNG decoder or asset directory. Install Pillow on the development
+machine, then run:
+
+```bash
+cd control-pi
+python tools/add-compiled-mark.py path/to/logo.png my-logo
+cmake -S . -B build -DEMULATOR=ON -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+```
+
+The tool scales the transparent PNG to a 32×32 ARGB LVGL image, writes it under
+`src/ui/generated/`, and updates the compiled mark registry. Set
+`mark = "my-logo"` in a profile or select it from Theme Studio after rebuilding.
+
 **Host Detail features:**
 - Power row: Reboot, Shutdown, Graceful Off (waits for host offline then cuts outlet), Wake-on-LAN, Outlet Toggle
 - 24h history line charts for CPU%, temp, RAM%
@@ -211,6 +319,10 @@ width  = 800
 height = 480
 fb_device    = "/dev/fb0"
 touch_device = "/dev/input/event0"   # confirm with: evtest
+screensaver_s = 300                   # 0 disables the rack-status screensaver
+
+[customization]
+profile_dir = ""  # empty uses $HOME/.config/command-deck/profiles
 
 [pdu]
 enabled  = true

@@ -8,6 +8,8 @@
 #include <ctime>
 #include <cstdio>
 #include <cmath>
+#include <algorithm>
+#include <filesystem>
 
 static AppShell* g_shell = nullptr;
 
@@ -18,10 +20,10 @@ static const char* TAB_LABELS[AppShell::TAB_COUNT] = {
 AppShell::AppShell(MetricsStore& store, PduStore& pdu, ActivityStore& activity,
                    CommandRouter& router, PowerHistoryStore& power_history,
                    PowerSequenceEngine& sequences, PowerBudgetController& budgets,
-                   UpdateManager& updater, const Config& cfg)
+                   UpdateManager& updater, ThemeStore& themes, const Config& cfg)
     : store_(store), pdu_(pdu), activity_(activity), router_(router),
       power_history_(power_history), sequences_(sequences), budgets_(budgets),
-      updater_(updater), cfg_(cfg) {
+      updater_(updater), themes_(themes), cfg_(cfg), theme_(themes.active()) {
     g_shell = this;
 }
 
@@ -37,6 +39,18 @@ static void shell_history_cb (lv_timer_t* t) { static_cast<AppShell*>(lv_timer_g
 static void shell_stale_cb   (lv_timer_t* t) { static_cast<AppShell*>(lv_timer_get_user_data(t))->on_stale_tick(); }
 static void shell_cursor_cb  (lv_timer_t* t) { static_cast<AppShell*>(lv_timer_get_user_data(t))->on_cursor_tick(); }
 static void shell_power_cb   (lv_timer_t* t) { static_cast<AppShell*>(lv_timer_get_user_data(t))->on_power_tick(); }
+static void shell_screensaver_cb(lv_timer_t* t) {
+    static_cast<AppShell*>(lv_timer_get_user_data(t))->on_screensaver_tick();
+}
+
+static void bubble_to_parent(lv_obj_t* obj) {
+    const uint32_t count = lv_obj_get_child_count(obj);
+    for (uint32_t i = 0; i < count; ++i) {
+        auto* child = lv_obj_get_child(obj, i);
+        lv_obj_add_flag(child, LV_OBJ_FLAG_EVENT_BUBBLE);
+        bubble_to_parent(child);
+    }
+}
 
 void AppShell::on_cursor_tick() {
     if (!lbl_cursor_) return;
@@ -47,7 +61,7 @@ void AppShell::on_cursor_tick() {
 // ── Build ─────────────────────────────────────────────────────────────────────
 
 void AppShell::build() {
-    styles::init();
+    styles::init(theme_);
 
     root_screen_ = lv_obj_create(nullptr);
     lv_obj_set_style_bg_color(root_screen_, styles::BG, 0);
@@ -58,6 +72,7 @@ void AppShell::build() {
     build_content_area();
     build_tab_bar();
     build_update_overlay();
+    build_screensaver();
 
     activity_toast_ = lv_obj_create(root_screen_);
     lv_obj_set_size(activity_toast_, 620, 34);
@@ -86,10 +101,183 @@ void AppShell::build() {
     clock_timer_   = lv_timer_create(shell_clock_cb,    1000, this);
     history_timer_ = lv_timer_create(shell_history_cb, 60000, this);
     stale_timer_   = lv_timer_create(shell_stale_cb,    5000, this);
-    cursor_timer_  = lv_timer_create(shell_cursor_cb,    600, this);
+    if (theme_.motion)
+        cursor_timer_ = lv_timer_create(shell_cursor_cb, 600, this);
     power_timer_   = lv_timer_create(shell_power_cb,    1000, this);
+    if (screensaver_timeout_s() > 0)
+        screensaver_timer_ = lv_timer_create(shell_screensaver_cb, 1000, this);
 
     update_header_clock();
+}
+
+void AppShell::build_screensaver() {
+    screensaver_ = lv_obj_create(root_screen_);
+    lv_obj_set_size(screensaver_, 800, 480);
+    lv_obj_set_pos(screensaver_, 0, 0);
+    lv_obj_set_style_bg_color(screensaver_, styles::BG, 0);
+    lv_obj_set_style_bg_opa(screensaver_, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(screensaver_, 0, 0);
+    lv_obj_set_style_radius(screensaver_, 0, 0);
+    lv_obj_set_style_pad_all(screensaver_, 0, 0);
+    styles::make_static(screensaver_);
+    lv_obj_add_flag(screensaver_, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(screensaver_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_event_cb(screensaver_, +[](lv_event_t* event) {
+        auto* shell = static_cast<AppShell*>(lv_event_get_user_data(event));
+        shell->hide_screensaver();
+        lv_event_stop_bubbling(event);
+    }, LV_EVENT_PRESSED, this);
+
+    if (theme_.screensaver_background_enabled && !theme_.screensaver_background.empty() &&
+        std::filesystem::is_regular_file(theme_.screensaver_background)) {
+        screensaver_bg_gif_ = lv_gif_create(screensaver_);
+        std::string path = "A:" + theme_.screensaver_background;
+        lv_gif_set_src(screensaver_bg_gif_, path.c_str());
+        if (lv_image_get_src(screensaver_bg_gif_)) {
+            const auto* image = static_cast<const lv_image_dsc_t*>(
+                lv_image_get_src(screensaver_bg_gif_));
+            const uint32_t scale_x = (800U * 256U + image->header.w - 1U) / image->header.w;
+            const uint32_t scale_y = (480U * 256U + image->header.h - 1U) / image->header.h;
+            lv_image_set_pivot(screensaver_bg_gif_, image->header.w / 2, image->header.h / 2);
+            lv_image_set_scale(screensaver_bg_gif_, std::max(scale_x, scale_y));
+            lv_obj_align(screensaver_bg_gif_, LV_ALIGN_CENTER, 0, 0);
+            styles::make_static(screensaver_bg_gif_);
+            lv_gif_pause(screensaver_bg_gif_);
+
+            screensaver_veil_ = lv_obj_create(screensaver_);
+            lv_obj_set_size(screensaver_veil_, 800, 480);
+            lv_obj_set_pos(screensaver_veil_, 0, 0);
+            lv_obj_set_style_bg_color(screensaver_veil_, styles::BG, 0);
+            lv_obj_set_style_bg_opa(screensaver_veil_,
+                static_cast<lv_opa_t>(theme_.screensaver_veil * 255 / 100), 0);
+            lv_obj_set_style_border_width(screensaver_veil_, 0, 0);
+            lv_obj_set_style_radius(screensaver_veil_, 0, 0);
+            styles::make_static(screensaver_veil_);
+        } else {
+            lv_obj_delete(screensaver_bg_gif_);
+            screensaver_bg_gif_ = nullptr;
+        }
+    }
+
+    auto* brand = lv_label_create(screensaver_);
+    lv_obj_add_style(brand, &styles::label_value, 0);
+    lv_obj_set_style_text_color(brand, styles::ACCENT, 0);
+    std::string title = std::string(theme_mark_text(theme_.mark)) + "  " + theme_.title;
+    lv_label_set_text(brand, title.c_str());
+    lv_obj_align(brand, LV_ALIGN_TOP_LEFT, 22, 18);
+
+    lbl_saver_clock_ = lv_label_create(screensaver_);
+    lv_obj_set_style_text_font(lbl_saver_clock_, &lv_font_montserrat_48, 0);
+    lv_obj_set_style_text_color(lbl_saver_clock_, styles::TEXT, 0);
+    lv_obj_align(lbl_saver_clock_, LV_ALIGN_TOP_MID, 0, 70);
+
+    lbl_saver_date_ = lv_label_create(screensaver_);
+    lv_obj_add_style(lbl_saver_date_, &styles::label_value, 0);
+    lv_obj_set_style_text_color(lbl_saver_date_, styles::TEXT_DIM, 0);
+    lv_obj_align(lbl_saver_date_, LV_ALIGN_TOP_MID, 0, 132);
+
+    auto make_metric = [&](int x, const char* caption, lv_obj_t** value) {
+        auto* panel = lv_obj_create(screensaver_);
+        lv_obj_set_size(panel, 238, 116);
+        lv_obj_set_pos(panel, x, 205);
+        lv_obj_add_style(panel, &styles::panel, 0);
+        lv_obj_set_style_bg_opa(panel,
+            static_cast<lv_opa_t>(theme_.screensaver_card_opacity * 255 / 100), 0);
+        styles::make_static(panel);
+        *value = lv_label_create(panel);
+        lv_obj_add_style(*value, &styles::label_title, 0);
+        lv_obj_set_style_text_color(*value, styles::ACCENT2, 0);
+        lv_obj_align(*value, LV_ALIGN_TOP_MID, 0, 12);
+        auto* label = lv_label_create(panel);
+        lv_obj_add_style(label, &styles::label_secondary, 0);
+        lv_label_set_text(label, caption);
+        lv_obj_align(label, LV_ALIGN_BOTTOM_MID, 0, -14);
+    };
+    make_metric(24, "NODES ONLINE", &lbl_saver_nodes_);
+    make_metric(281, "RACK POWER", &lbl_saver_power_);
+    make_metric(538, "RACK HEALTH", &lbl_saver_health_);
+
+    auto* hint = lv_label_create(screensaver_);
+    lv_obj_add_style(hint, &styles::label_secondary, 0);
+    lv_label_set_text(hint, "Tap anywhere to return to Command Deck");
+    lv_obj_align(hint, LV_ALIGN_BOTTOM_MID, 0, -28);
+    styles::make_scroll_passthrough(screensaver_);
+    bubble_to_parent(screensaver_);
+    lv_obj_add_flag(screensaver_, LV_OBJ_FLAG_CLICKABLE);
+}
+
+void AppShell::show_screensaver() {
+    if (!screensaver_ || screensaver_visible_) return;
+    screensaver_visible_ = true;
+    update_screensaver();
+    lv_obj_clear_flag(screensaver_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_foreground(screensaver_);
+    if (screensaver_bg_gif_) lv_gif_resume(screensaver_bg_gif_);
+}
+
+void AppShell::hide_screensaver() {
+    if (!screensaver_) return;
+    screensaver_visible_ = false;
+    if (screensaver_bg_gif_) lv_gif_pause(screensaver_bg_gif_);
+    lv_obj_add_flag(screensaver_, LV_OBJ_FLAG_HIDDEN);
+    lv_display_trigger_activity(lv_display_get_default());
+}
+
+void AppShell::on_screensaver_tick() {
+    if (screensaver_visible_) {
+        update_screensaver();
+        return;
+    }
+    const int timeout_s = screensaver_timeout_s();
+    if (timeout_s <= 0) return;
+    if (updater_.status().state == UpdateState::Running) return;
+    if (lv_display_get_inactive_time(lv_display_get_default()) >=
+        static_cast<uint32_t>(timeout_s) * 1000U)
+        show_screensaver();
+}
+
+int AppShell::screensaver_timeout_s() const {
+    return theme_.screensaver_s < 0 ? cfg_.display.screensaver_s : theme_.screensaver_s;
+}
+
+void AppShell::show_theme_studio() {
+    show_tab(TAB_SETTINGS);
+    if (screen_settings_) screen_settings_->show_theme_studio();
+}
+
+void AppShell::update_screensaver() {
+    if (!screensaver_visible_ || !lbl_saver_clock_) return;
+    time_t now = std::time(nullptr);
+    struct tm* tm_info = std::localtime(&now);
+    char buf[96];
+    std::strftime(buf, sizeof(buf), theme_.clock_24h ? "%H:%M" : "%I:%M %p", tm_info);
+    lv_label_set_text(lbl_saver_clock_, buf);
+    std::strftime(buf, sizeof(buf), "%A, %B %d", tm_info);
+    lv_label_set_text(lbl_saver_date_, buf);
+
+    auto hosts = store_.snapshot();
+    int online = 0, alerts = 0;
+    for (const auto& [name, host] : hosts) {
+        (void)name;
+        if (host.online) ++online;
+        else ++alerts;
+        if (host.online && ((!std::isnan(host.metrics.cpu_temp_c) && host.metrics.cpu_temp_c > 75.f) ||
+                            host.metrics.cpu.usage_pct > 90.f)) ++alerts;
+    }
+    snprintf(buf, sizeof(buf), "%d / %zu", online, hosts.size());
+    lv_label_set_text(lbl_saver_nodes_, buf);
+    lv_obj_set_style_text_color(lbl_saver_nodes_,
+        online == static_cast<int>(hosts.size()) ? styles::OK : styles::WARN, 0);
+    if (cfg_.pdu.enabled && pdu_.measurements_available())
+        snprintf(buf, sizeof(buf), "~%.0f W", pdu_.total_watts());
+    else
+        snprintf(buf, sizeof(buf), "--");
+    lv_label_set_text(lbl_saver_power_, buf);
+    const bool critical = budgets_.critical();
+    const bool warning = budgets_.warning() || alerts > 0;
+    lv_label_set_text(lbl_saver_health_, critical ? "CRITICAL" : warning ? "ATTENTION" : "NOMINAL");
+    lv_obj_set_style_text_color(lbl_saver_health_,
+        critical ? styles::DANGER : warning ? styles::WARN : styles::OK, 0);
 }
 
 void AppShell::build_update_overlay() {
@@ -148,7 +336,19 @@ void AppShell::build_header() {
     lv_obj_set_style_text_font(lbl_title_, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(lbl_title_, styles::ACCENT, 0);
     lv_obj_align(lbl_title_, LV_ALIGN_LEFT_MID, 8, 0);
-    lv_label_set_text(lbl_title_, "COMMAND DECK // RACK OPS");
+    int title_x = 8;
+    if (const auto* mark = theme_mark_image(theme_.mark)) {
+        auto* image = lv_image_create(header_bar_);
+        lv_image_set_src(image, mark);
+        lv_obj_align(image, LV_ALIGN_LEFT_MID, 8, 0);
+        styles::make_static(image);
+        title_x = 48;
+    }
+    std::string title = theme_mark_image(theme_.mark) ? theme_.title :
+                        std::string(theme_mark_text(theme_.mark)) + "  " + theme_.title;
+    if (!theme_.subtitle.empty()) title += " // " + theme_.subtitle;
+    lv_label_set_text(lbl_title_, title.c_str());
+    lv_obj_align(lbl_title_, LV_ALIGN_LEFT_MID, title_x, 0);
 
     lbl_cursor_ = lv_label_create(header_bar_);
     lv_obj_add_style(lbl_cursor_, &styles::label_value, 0);
@@ -342,7 +542,8 @@ void AppShell::show_tab(Tab t) {
     case TAB_SETTINGS:
         if (!screen_settings_)
             screen_settings_ = std::make_unique<ScreenSettings>(
-                content_area_, cfg_, activity_, updater_);
+                content_area_, cfg_, activity_, updater_, themes_,
+                [this](const ThemeProfile& profile) { apply_theme(profile); });
         screen_settings_->show();
         break;
     default: break;
@@ -385,6 +586,7 @@ void AppShell::refresh() {
     auto outlets = pdu_.get();
     update_activity_toast();
     update_update_overlay();
+    update_screensaver();
 
     if (detail_visible_ && screen_detail_) {
         // Keep detail header status current
@@ -464,8 +666,50 @@ void AppShell::update_header_clock() {
     time_t now = std::time(nullptr);
     struct tm* tm_info = std::localtime(&now);
     char buf[16];
-    std::strftime(buf, sizeof(buf), "%H:%M:%S", tm_info);
+    std::strftime(buf, sizeof(buf), theme_.clock_24h ? "%H:%M:%S" : "%I:%M %p", tm_info);
     lv_label_set_text(lbl_clock_, buf);
+}
+
+void AppShell::apply_theme(const ThemeProfile& profile) {
+    std::string error;
+    if (!themes_.set_active(profile, &error)) return;
+    theme_ = profile;
+    auto* data = new AppShell*(this);
+    lv_async_call(+[](void* value) {
+        auto* holder = static_cast<AppShell**>(value);
+        (*holder)->rebuild_ui();
+        delete holder;
+    }, data);
+}
+
+void AppShell::rebuild_ui() {
+    if (refresh_timer_) lv_timer_del(refresh_timer_);
+    if (clock_timer_) lv_timer_del(clock_timer_);
+    if (history_timer_) lv_timer_del(history_timer_);
+    if (stale_timer_) lv_timer_del(stale_timer_);
+    if (cursor_timer_) lv_timer_del(cursor_timer_);
+    if (power_timer_) lv_timer_del(power_timer_);
+    if (screensaver_timer_) lv_timer_del(screensaver_timer_);
+    refresh_timer_ = clock_timer_ = history_timer_ = stale_timer_ = cursor_timer_ = power_timer_ = nullptr;
+    screensaver_timer_ = nullptr;
+
+    lv_obj_t* old_root = root_screen_;
+    screen_detail_.reset();
+    screen_settings_.reset();
+    screen_pdu_.reset();
+    screen_hosts_.reset();
+    screen_overview_.reset();
+    root_screen_ = header_bar_ = lbl_title_ = lbl_clock_ = lbl_badge_ = content_area_ = nullptr;
+    tab_bar_ = activity_toast_ = lbl_activity_toast_ = update_overlay_ = screensaver_ = nullptr;
+    screensaver_bg_gif_ = screensaver_veil_ = nullptr;
+    lbl_saver_clock_ = lbl_saver_date_ = lbl_saver_nodes_ = lbl_saver_power_ = lbl_saver_health_ = nullptr;
+    lbl_update_overlay_status_ = btn_header_back_ = lbl_detail_host_ = lbl_detail_status_ = nullptr;
+    for (auto& button : tab_btns_) button = nullptr;
+    detail_visible_ = false;
+    screensaver_visible_ = false;
+    styles::apply(theme_);
+    build();
+    if (old_root) lv_obj_delete(old_root);
 }
 
 void AppShell::update_alert_badge() {
