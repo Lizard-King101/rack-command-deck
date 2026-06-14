@@ -14,6 +14,7 @@
 #include <lvgl.h>
 #include <thread>
 #include <chrono>
+#include <algorithm>
 #include <csignal>
 #include <atomic>
 #include <cstdlib>
@@ -126,6 +127,7 @@ int main(int argc, char* argv[]) {
 
     // ── LVGL init ─────────────────────────────────────────────────────────────
     lv_init();
+    lv_ffmpeg_init();
 
 #ifdef EMULATOR_BUILD
     lv_display_t* disp = lv_sdl_window_create(cfg.display.width, cfg.display.height);
@@ -216,7 +218,15 @@ int main(int argc, char* argv[]) {
     if (const char* host = std::getenv("DECK_SCREENSHOT_HOST"))
         shell.show_host_detail(host);
     if (const char* screenshot = std::getenv("DECK_SCREENSHOT")) {
-        for (int i = 0; i < 3; ++i) lv_timer_handler();
+        int wait_ms = 0;
+        if (const char* delay = std::getenv("DECK_SCREENSHOT_DELAY_MS"))
+            wait_ms = std::max(0, std::atoi(delay));
+        const auto deadline = std::chrono::steady_clock::now() +
+                              std::chrono::milliseconds(wait_ms);
+        do {
+            const uint32_t delay = lv_timer_handler();
+            std::this_thread::sleep_for(std::chrono::milliseconds(std::min(delay, 10U)));
+        } while (std::chrono::steady_clock::now() < deadline);
         save_screenshot(screenshot);
         g_running = false;
     }

@@ -92,7 +92,7 @@ private:
     lv_obj_t* update_overlay_ = nullptr;
     lv_obj_t* lbl_update_overlay_status_ = nullptr;
     lv_obj_t* screensaver_ = nullptr;
-    lv_obj_t* screensaver_bg_gif_ = nullptr;
+    lv_obj_t* screensaver_bg_media_ = nullptr;
     lv_obj_t* screensaver_veil_ = nullptr;
     lv_obj_t* lbl_saver_clock_ = nullptr;
     lv_obj_t* lbl_saver_date_ = nullptr;
@@ -109,6 +109,7 @@ private:
     Tab  active_tab_     = TAB_OVERVIEW;
     bool detail_visible_ = false;
     bool screensaver_visible_ = false;
+    bool screensaver_bg_is_video_ = false;
     std::string detail_host_;
     std::string last_toast_id_;
     int         toast_ticks_ = 0;

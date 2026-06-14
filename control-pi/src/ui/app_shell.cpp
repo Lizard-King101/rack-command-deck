@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <cmath>
 #include <algorithm>
+#include <cctype>
 #include <filesystem>
 
 static AppShell* g_shell = nullptr;
@@ -50,6 +51,13 @@ static void bubble_to_parent(lv_obj_t* obj) {
         lv_obj_add_flag(child, LV_OBJ_FLAG_EVENT_BUBBLE);
         bubble_to_parent(child);
     }
+}
+
+static std::string lowercase_extension(const std::string& path) {
+    auto extension = std::filesystem::path(path).extension().string();
+    std::transform(extension.begin(), extension.end(), extension.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return extension;
 }
 
 void AppShell::on_cursor_tick() {
@@ -130,19 +138,40 @@ void AppShell::build_screensaver() {
 
     if (theme_.screensaver_background_enabled && !theme_.screensaver_background.empty() &&
         std::filesystem::is_regular_file(theme_.screensaver_background)) {
-        screensaver_bg_gif_ = lv_gif_create(screensaver_);
-        std::string path = "A:" + theme_.screensaver_background;
-        lv_gif_set_src(screensaver_bg_gif_, path.c_str());
-        if (lv_image_get_src(screensaver_bg_gif_)) {
+        const auto extension = lowercase_extension(theme_.screensaver_background);
+        if (extension == ".mp4") {
+            screensaver_bg_media_ = lv_ffmpeg_player_create(screensaver_);
+            screensaver_bg_is_video_ = true;
+            lv_ffmpeg_player_set_auto_restart(screensaver_bg_media_, true);
+            if (lv_ffmpeg_player_set_src(screensaver_bg_media_,
+                                         theme_.screensaver_background.c_str()) != LV_RESULT_OK) {
+                lv_obj_delete(screensaver_bg_media_);
+                screensaver_bg_media_ = nullptr;
+                screensaver_bg_is_video_ = false;
+            }
+        } else if (extension == ".gif") {
+            screensaver_bg_media_ = lv_gif_create(screensaver_);
+            std::string path = "A:" + theme_.screensaver_background;
+            lv_gif_set_src(screensaver_bg_media_, path.c_str());
+            if (!lv_image_get_src(screensaver_bg_media_)) {
+                lv_obj_delete(screensaver_bg_media_);
+                screensaver_bg_media_ = nullptr;
+            }
+        }
+
+        if (screensaver_bg_media_) {
             const auto* image = static_cast<const lv_image_dsc_t*>(
-                lv_image_get_src(screensaver_bg_gif_));
+                lv_image_get_src(screensaver_bg_media_));
             const uint32_t scale_x = (800U * 256U + image->header.w - 1U) / image->header.w;
             const uint32_t scale_y = (480U * 256U + image->header.h - 1U) / image->header.h;
-            lv_image_set_pivot(screensaver_bg_gif_, image->header.w / 2, image->header.h / 2);
-            lv_image_set_scale(screensaver_bg_gif_, std::max(scale_x, scale_y));
-            lv_obj_align(screensaver_bg_gif_, LV_ALIGN_CENTER, 0, 0);
-            styles::make_static(screensaver_bg_gif_);
-            lv_gif_pause(screensaver_bg_gif_);
+            lv_image_set_pivot(screensaver_bg_media_, image->header.w / 2, image->header.h / 2);
+            lv_image_set_scale(screensaver_bg_media_, std::max(scale_x, scale_y));
+            lv_obj_align(screensaver_bg_media_, LV_ALIGN_CENTER, 0, 0);
+            styles::make_static(screensaver_bg_media_);
+            if (screensaver_bg_is_video_)
+                lv_ffmpeg_player_set_cmd(screensaver_bg_media_, LV_FFMPEG_PLAYER_CMD_PAUSE);
+            else
+                lv_gif_pause(screensaver_bg_media_);
 
             screensaver_veil_ = lv_obj_create(screensaver_);
             lv_obj_set_size(screensaver_veil_, 800, 480);
@@ -153,9 +182,6 @@ void AppShell::build_screensaver() {
             lv_obj_set_style_border_width(screensaver_veil_, 0, 0);
             lv_obj_set_style_radius(screensaver_veil_, 0, 0);
             styles::make_static(screensaver_veil_);
-        } else {
-            lv_obj_delete(screensaver_bg_gif_);
-            screensaver_bg_gif_ = nullptr;
         }
     }
 
@@ -212,13 +238,23 @@ void AppShell::show_screensaver() {
     update_screensaver();
     lv_obj_clear_flag(screensaver_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(screensaver_);
-    if (screensaver_bg_gif_) lv_gif_resume(screensaver_bg_gif_);
+    if (screensaver_bg_media_) {
+        if (screensaver_bg_is_video_)
+            lv_ffmpeg_player_set_cmd(screensaver_bg_media_, LV_FFMPEG_PLAYER_CMD_RESUME);
+        else
+            lv_gif_resume(screensaver_bg_media_);
+    }
 }
 
 void AppShell::hide_screensaver() {
     if (!screensaver_) return;
     screensaver_visible_ = false;
-    if (screensaver_bg_gif_) lv_gif_pause(screensaver_bg_gif_);
+    if (screensaver_bg_media_) {
+        if (screensaver_bg_is_video_)
+            lv_ffmpeg_player_set_cmd(screensaver_bg_media_, LV_FFMPEG_PLAYER_CMD_PAUSE);
+        else
+            lv_gif_pause(screensaver_bg_media_);
+    }
     lv_obj_add_flag(screensaver_, LV_OBJ_FLAG_HIDDEN);
     lv_display_trigger_activity(lv_display_get_default());
 }
@@ -701,12 +737,13 @@ void AppShell::rebuild_ui() {
     screen_overview_.reset();
     root_screen_ = header_bar_ = lbl_title_ = lbl_clock_ = lbl_badge_ = content_area_ = nullptr;
     tab_bar_ = activity_toast_ = lbl_activity_toast_ = update_overlay_ = screensaver_ = nullptr;
-    screensaver_bg_gif_ = screensaver_veil_ = nullptr;
+    screensaver_bg_media_ = screensaver_veil_ = nullptr;
     lbl_saver_clock_ = lbl_saver_date_ = lbl_saver_nodes_ = lbl_saver_power_ = lbl_saver_health_ = nullptr;
     lbl_update_overlay_status_ = btn_header_back_ = lbl_detail_host_ = lbl_detail_status_ = nullptr;
     for (auto& button : tab_btns_) button = nullptr;
     detail_visible_ = false;
     screensaver_visible_ = false;
+    screensaver_bg_is_video_ = false;
     styles::apply(theme_);
     build();
     if (old_root) lv_obj_delete(old_root);

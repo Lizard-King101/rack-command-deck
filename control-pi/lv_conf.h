@@ -38,6 +38,8 @@
 #define LV_USE_SNAPSHOT 1
 #define LV_USE_GIF 1
 #define LV_GIF_CACHE_DECODE_DATA 0
+#define LV_USE_FFMPEG 1
+#define LV_FFMPEG_DUMP_FORMAT 0
 #define LV_USE_FS_STDIO 'A'
 #define LV_FS_STDIO_LETTER 'A'
 #define LV_FS_STDIO_PATH ""

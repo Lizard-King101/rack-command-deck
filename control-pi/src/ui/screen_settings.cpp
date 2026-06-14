@@ -401,7 +401,7 @@ void ScreenSettings::build_theme_studio(lv_obj_t* parent) {
                      working_.screensaver_s = values[current % std::size(values)];
                      refresh_theme_preview();
                  });
-    make_control("Animated Background", "Use the GIF path configured in the profile TOML",
+    make_control("Animated Background", "Use the MP4 or GIF path configured in the profile TOML",
                  &lbl_saver_background_value_, [this] {
                      working_.screensaver_background_enabled =
                          !working_.screensaver_background_enabled;
@@ -565,7 +565,7 @@ void ScreenSettings::refresh_theme_preview() {
     }
     if (lbl_saver_background_value_) lv_label_set_text(lbl_saver_background_value_,
         !working_.screensaver_background_enabled ? "Disabled" :
-        working_.screensaver_background.empty() ? "No GIF configured" : "Enabled");
+        working_.screensaver_background.empty() ? "No media configured" : "Enabled");
     if (lbl_saver_veil_value_) {
         char veil[24];
         snprintf(veil, sizeof(veil), "%d%%", working_.screensaver_veil);

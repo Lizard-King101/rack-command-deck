@@ -50,6 +50,10 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBWEBSOCKETS REQUIRED libwebsockets)
 pkg_check_modules(LIBCURL       REQUIRED libcurl)
 pkg_check_modules(SQLITE3       REQUIRED sqlite3)
+pkg_check_modules(FFMPEG        REQUIRED libavcodec libavformat libavutil libswscale)
+
+target_include_directories(lvgl PUBLIC ${FFMPEG_INCLUDE_DIRS})
+target_link_libraries(lvgl PUBLIC ${FFMPEG_LIBRARIES})
 
 if(EMULATOR)
     pkg_check_modules(SDL2 REQUIRED sdl2)
@@ -69,6 +73,7 @@ target_include_directories(command-deck PRIVATE
     ${LIBWEBSOCKETS_INCLUDE_DIRS}
     ${LIBCURL_INCLUDE_DIRS}
     ${SQLITE3_INCLUDE_DIRS}
+    ${FFMPEG_INCLUDE_DIRS}
 )
 
 
@@ -79,6 +84,7 @@ target_link_libraries(command-deck PRIVATE
     ${LIBWEBSOCKETS_LIBRARIES}
     ${LIBCURL_LIBRARIES}
     ${SQLITE3_LIBRARIES}
+    ${FFMPEG_LIBRARIES}
     pthread
 )
 

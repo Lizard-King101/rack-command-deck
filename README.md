@@ -76,7 +76,7 @@ screensaver_s = 300  # -1 uses display config, 0 disables
 
 [screensaver]
 background_enabled = true
-background = "/home/nick/.config/command-deck/assets/screensaver.gif"
+background = "/home/nick/.config/command-deck/assets/screensaver.mp4"
 veil = 55
 card_opacity = 90
 
@@ -109,15 +109,24 @@ health after the configured inactivity period. The first touch wakes the normal
 dashboard without activating the control underneath it. Its timeout can be
 stored in a profile or inherited from `[display].screensaver_s`.
 
-An optional looping GIF can render behind the screensaver status UI. Set
-`[screensaver].background` to its absolute path. The GIF is centered and scaled
-to cover the display; `800x480` is recommended to reduce memory and CPU use, but
-larger sources are supported. The GIF is loaded at runtime, so replacing it does
-not require rebuilding Command Deck. `veil` controls the percentage of theme
-background drawn over the animation; higher values improve readability. Missing
-or invalid files fall back to the normal static theme background.
+An optional looping MP4 or GIF can render behind the screensaver status UI. Set
+`[screensaver].background` to its absolute path. Media is centered and scaled to
+cover the display. H.264 MP4 at exactly `800x480` and `24 fps` is recommended
+for smooth Pi 3 playback; GIF remains supported for compatibility but uses more
+CPU. Media is loaded at runtime, so replacing it does not require rebuilding
+Command Deck. `veil` controls the percentage of theme background drawn over the
+animation; higher values improve readability. Missing, invalid, or unsupported
+files fall back to the normal static theme background.
 `card_opacity` controls how much of the animation shows through the rack-status
 cards; lower values create a stronger glass effect.
+
+Convert a sourced animation into the recommended screensaver format:
+
+```bash
+ffmpeg -i input.gif \
+  -vf "scale=800:480:force_original_aspect_ratio=increase,crop=800:480,fps=24" \
+  -an -c:v libx264 -preset slow -crf 18 -pix_fmt yuv420p screensaver.mp4
+```
 
 #### Adding a compiled custom mark
 
@@ -196,7 +205,8 @@ The normal Pi update path downloads the ARM64 release built by GitHub Actions.
 To build natively on the Pi instead:
 
 ```bash
-sudo apt install libwebsockets-dev libcurl4-openssl-dev libsdl2-dev libsqlite3-dev cmake build-essential git
+sudo apt install libwebsockets-dev libcurl4-openssl-dev libsdl2-dev libsqlite3-dev \
+  libavcodec-dev libavformat-dev libavutil-dev libswscale-dev cmake build-essential git
 cd control-pi
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j$(nproc)
@@ -207,7 +217,7 @@ sudo systemctl enable --now command-deck
 ### Updating from the touchscreen
 
 Every successful push to `master` builds and tests the dashboard in a native
-ARM64 Debian Bookworm environment, then replaces the assets on the rolling
+ARM64 Debian Trixie environment, then replaces the assets on the rolling
 `latest` GitHub prerelease. The System tab downloads, verifies, installs, and
 restarts that release while showing progress.
 
